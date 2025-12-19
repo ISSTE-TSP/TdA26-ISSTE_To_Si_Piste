@@ -8,16 +8,68 @@ const LECTURER = { username: 'lecturer', password: 'TdA26!' }
 
 const uuid = () => (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2, 9)
 
-const saveCourses = (arr) => localStorage.setItem(COURSES_KEY, JSON.stringify(arr))
-const loadCourses = () => JSON.parse(localStorage.getItem(COURSES_KEY) || 'null') || seedCourses()
+const API_BASE = '/api'
 
-function seedCourses() {
-  const seed = [
-    { id: uuid(), title: 'Test 1', description: 'Něco' },
-    { id: uuid(), title: 'Test 2', description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit' }
-  ]
-  saveCourses(seed)
-  return seed
+const saveCourses = (arr) => localStorage.setItem(COURSES_KEY, JSON.stringify(arr))
+const loadCourses = () => JSON.parse(localStorage.getItem(COURSES_KEY) || 'null') || []
+
+async function fetchCourses() {
+  try {
+    const res = await fetch(`${API_BASE}/courses`)
+    if (!res.ok) throw new Error('Failed to fetch')
+    return await res.json()
+  } catch (e) {
+    // fallback to local
+    return loadCourses()
+  }
+}
+
+async function fetchCourse(uuid) {
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(uuid)}`)
+    if (!res.ok) throw new Error('Not found')
+    return await res.json()
+  } catch (e) {
+    const local = loadCourses()
+    return local.find(c => c.id === uuid)
+  }
+}
+
+async function createCourseOnServer(title, description) {
+  try {
+    const res = await fetch(`${API_BASE}/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title, description }) })
+    if (!res.ok) throw new Error('Create failed')
+    return await res.json()
+  } catch (e) {
+    const arr = loadCourses()
+    const obj = { id: uuid(), title, description }
+    arr.push(obj); saveCourses(arr); return obj
+  }
+}
+
+async function updateCourseOnServer(uuid, title, description) {
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(uuid)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title, description }) })
+    if (!res.ok) throw new Error('Update failed')
+    return await res.json()
+  } catch (e) {
+    const arr = loadCourses()
+    const idx = arr.findIndex(c => c.id === uuid)
+    if (idx >= 0) { arr[idx].title = title; arr[idx].description = description; saveCourses(arr); return arr[idx] }
+    throw e
+  }
+}
+
+async function deleteCourseOnServer(uuid) {
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(uuid)}`, { method: 'DELETE' })
+    if (!res.ok && res.status !== 204) throw new Error('Delete failed')
+    return true
+  } catch (e) {
+    const arr = loadCourses().filter(x => x.id !== uuid)
+    saveCourses(arr)
+    return true
+  }
 }
 
 const isAuth = () => !!localStorage.getItem(AUTH_KEY)
@@ -107,8 +159,8 @@ function renderHome() {
   `
 }
 
-function renderCourses() {
-  const courses = loadCourses()
+async function renderCourses() {
+  const courses = await fetchCourses()
   app.innerHTML = `
     <h1>Courses</h1>
     <div style="margin-bottom:1rem;">
@@ -121,8 +173,8 @@ function renderCourses() {
     if (!filtered.length) { list.innerHTML = '<p>No courses found.</p>'; return }
     list.innerHTML = filtered.map(c => `
       <article style="text-align:left;border:1px solid #e6e9ee;padding:1rem;margin:0.5rem 0;">
-        <h3><a href="/courses/${c.id}" data-link>${escapeHtml(c.title)}</a></h3>
-        <p>${escapeHtml(c.description)}</p>
+        <h3><a href="/courses/${c.uuid || c.id}" data-link>${escapeHtml(c.name || c.title)}</a></h3>
+        <p>${escapeHtml(c.description || '')}</p>
       </article>
     `).join('')
   }
@@ -131,17 +183,16 @@ function renderCourses() {
   search.addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase()
     if (!q) return show(courses)
-    show(courses.filter(c => c.title.toLowerCase().includes(q)))
+    show(courses.filter(c => (c.name || c.title || '').toLowerCase().includes(q)))
   })
 }
 
-function renderCourseDetail(params) {
-  const courses = loadCourses()
-  const course = courses.find(c => c.id === params.uuid)
+async function renderCourseDetail(params) {
+  const course = await fetchCourse(params.uuid)
   if (!course) { renderNotFound(); return }
   app.innerHTML = `
-    <h1>${escapeHtml(course.title)}</h1>
-    <p>${escapeHtml(course.description)}</p>
+    <h1>${escapeHtml(course.name || course.title)}</h1>
+    <p>${escapeHtml(course.description || '')}</p>
     <p><a href="/courses" data-link>Back to list</a></p>
   `
 }
@@ -169,9 +220,9 @@ function renderLogin() {
   })
 }
 
-function renderDashboard() {
+async function renderDashboard() {
   if (!isAuth()) { navigateTo('/login'); return }
-  const courses = loadCourses()
+  const courses = await fetchCourses()
   app.innerHTML = `
     <h1>Dashboard</h1>
     <div style="text-align:left;max-width:760px;margin:0 auto;">
@@ -194,43 +245,40 @@ function renderDashboard() {
   `
   document.getElementById('logout').addEventListener('click', () => { logout() })
   const addForm = document.getElementById('add-form')
-  addForm.addEventListener('submit', (e) => {
+  addForm.addEventListener('submit', async (e) => {
     e.preventDefault()
     const fd = new FormData(addForm)
     const title = fd.get('title').trim()
     const description = fd.get('description').trim()
     if (!title) return
-    const arr = loadCourses()
-    arr.push({ id: uuid(), title, description })
-    saveCourses(arr)
+    await createCourseOnServer(title, description)
     renderDashboard()
   })
   renderManageList()
 }
 
-function renderManageList() {
+async function renderManageList() {
   const list = document.getElementById('manage-list')
-  const courses = loadCourses()
+  const courses = await fetchCourses()
   if (!courses.length) { list.innerHTML = '<p>No courses yet.</p>'; return }
   list.innerHTML = courses.map(c => `
     <div style="border:1px solid #e6e9ee;padding:0.5rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
       <div style="flex:1;text-align:left;padding-right:1rem;">
-        <strong>${escapeHtml(c.title)}</strong>
-        <div style="color:#666">${escapeHtml(c.description)}</div>
+        <strong>${escapeHtml(c.name || c.title)}</strong>
+        <div style="color:#666">${escapeHtml(c.description || '')}</div>
       </div>
       <div style="display:flex;gap:0.5rem;">
-        <button data-action="edit" data-id="${c.id}">Edit</button>
-        <button data-action="delete" data-id="${c.id}">Delete</button>
+        <button data-action="edit" data-id="${c.uuid || c.id}">Edit</button>
+        <button data-action="delete" data-id="${c.uuid || c.id}">Delete</button>
       </div>
     </div>
   `).join('')
-  list.querySelectorAll('button').forEach(b => b.addEventListener('click', (e) => {
+  list.querySelectorAll('button').forEach(b => b.addEventListener('click', async (e) => {
     const id = e.currentTarget.dataset.id
     const action = e.currentTarget.dataset.action
     if (action === 'delete') {
       if (!confirm('Delete this course?')) return
-      const arr = loadCourses().filter(x => x.id !== id)
-      saveCourses(arr)
+      await deleteCourseOnServer(id)
       renderDashboard()
     } else if (action === 'edit') {
       openEditForm(id)
@@ -239,28 +287,26 @@ function renderManageList() {
 }
 
 function openEditForm(id) {
-  const courses = loadCourses()
-  const course = courses.find(c => c.id === id)
-  if (!course) return
+  fetchCourse(id).then(course => {
+    if (!course) return renderNotFound()
   app.innerHTML = `
     <h1>Edit course</h1>
     <form id="edit-form" style="max-width:760px;margin:0 auto;text-align:left;">
-      <input name="title" value="${escapeHtml(course.title)}" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
-      <textarea name="description" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem">${escapeHtml(course.description)}</textarea>
+      <input name="title" value="${escapeHtml(course.name || course.title)}" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
+      <textarea name="description" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem">${escapeHtml(course.description || '')}</textarea>
       <div><button type="submit">Save</button> <button id="cancel">Cancel</button></div>
     </form>
   `
   document.getElementById('cancel').addEventListener('click', (e) => { e.preventDefault(); renderDashboard() })
-  document.getElementById('edit-form').addEventListener('submit', (e) => {
+  document.getElementById('edit-form').addEventListener('submit', async (e) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     const title = fd.get('title').trim()
     const description = fd.get('description').trim()
-    const arr = loadCourses()
-    const idx = arr.findIndex(x => x.id === id)
-    if (idx >= 0) { arr[idx].title = title; arr[idx].description = description; saveCourses(arr) }
+    await updateCourseOnServer(id, title, description)
     renderDashboard()
   })
+  }).catch(() => renderNotFound())
 }
 
 function escapeHtml(s) {

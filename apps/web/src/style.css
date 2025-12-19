@@ -13,6 +13,14 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+@font-face {
+          font-family: 'Dosis';
+          src: url('font.ttf');
+      }
+      body {
+          font-family: 'Dosis', sans-serif;
+      }
+
 a {
   font-weight: 500;
   color: #646cff;

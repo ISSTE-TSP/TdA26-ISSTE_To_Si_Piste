@@ -1,0 +1,694 @@
+openapi: 3.0.3
+info:
+  title: Think Different Academy – Tour de App 2026 API
+  version: 1.0.0
+  description: >
+    Official OpenAPI (Swagger) specification for the **Tour de App 2026** competition project.
+
+    This API defines the architecture for the **Think Different Academy** learning platform —
+    an interactive educational system combining courses, materials, quizzes, and live updates.
+
+    It covers the main development phases of the challenge:
+    - Phase 0 – basic deployment (Hello TdA)
+    - Phase 1 – course catalog and instructor dashboard
+    - Phase 2 – course materials
+    - Phase 3 – quizzes
+    - Phase 4 – news feed and SSE updates
+
+    **Authentication is not part of this specification.**
+    All endpoints are publicly accessible for simplicity.
+
+servers:
+  - url: https://<identificator>.tourde.app/api
+    description: Production deployment environment for Tour de App submissions
+  - url: https://uwu-t34m-su8d0m41n.tourde.app/api
+    description: Example test environment for a demo team
+
+paths:
+  /:
+    get:
+      summary: Root endpoint
+      description: Returns basic organization information for environment validation.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+
+  /courses:
+    get:
+      summary: List all courses
+      description: Returns all available public courses.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CourseSummary'
+    post:
+      summary: Create a new course
+      description: Instructor can create a new course.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseCreateRequest'
+      responses:
+        '201':
+          description: Course created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseSummary'
+
+  /courses/{courseId}:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+    get:
+      summary: Get course details
+      description: Returns full course details, including materials, quizzes, and feed items.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update course
+      description: Updates course name or description.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseUpdateRequest'
+      responses:
+        '200':
+          description: Course updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseSummary'
+    delete:
+      summary: Delete course
+      description: Deletes the course, including related data.
+      responses:
+        '204':
+          description: Course deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /courses/{courseId}/materials:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+    get:
+      summary: List course materials
+      description: Returns all learning materials associated with a course.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Material'
+    post:
+      summary: Add new material (file or URL)
+      description: >
+        Adds a new file or link material to a course.
+        Use `multipart/form-data` for files and `application/json` for URLs.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileMaterialCreateRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UrlMaterialCreateRequest'
+      responses:
+        '201':
+          description: Material created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Material'
+
+  /courses/{courseId}/materials/{materialId}:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+      - $ref: '#/components/parameters/MaterialId'
+    put:
+      summary: Update material
+      description: Update metadata or replace an uploaded file.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileMaterialUpdateRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UrlMaterialUpdateRequest'
+      responses:
+        '200':
+          description: Material updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Material'
+    delete:
+      summary: Delete material
+      description: Removes the material from the course.
+      responses:
+        '204':
+          description: Material deleted
+
+  /courses/{courseId}/quizzes:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+    get:
+      summary: List quizzes
+      description: Returns all quizzes belonging to a specific course.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Quiz'
+    post:
+      summary: Create new quiz
+      description: Instructor can create a new quiz for a course.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Quiz'
+      responses:
+        '201':
+          description: Quiz created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quiz'
+
+  /courses/{courseId}/quizzes/{quizId}:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      summary: Get quiz details
+      description: Returns quiz data, including all questions.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quiz'
+    put:
+      summary: Update quiz
+      description: Update quiz title or questions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Quiz'
+      responses:
+        '200':
+          description: Quiz updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quiz'
+    delete:
+      summary: Delete quiz
+      description: Permanently removes the quiz from the course.
+      responses:
+        '204':
+          description: Quiz deleted
+
+  /courses/{courseId}/quizzes/{quizId}/submit:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+      - $ref: '#/components/parameters/QuizId'
+    post:
+      summary: Submit quiz answers
+      description: Evaluates quiz answers and returns the score.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuizSubmitRequest'
+      responses:
+        '200':
+          description: Quiz evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuizSubmitResponse'
+
+  /courses/{courseId}/feed:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+    get:
+      summary: Get course feed
+      description: Returns course news posts and automatic system events.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeedItem'
+    post:
+      summary: Add new feed post
+      description: Instructor can add manual updates (e.g. announcements).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedCreateRequest'
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedItem'
+
+  /courses/{courseId}/feed/{postId}:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+      - $ref: '#/components/parameters/PostId'
+    put:
+      summary: Update feed post
+      description: Edit an existing post and mark it as edited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedUpdateRequest'
+      responses:
+        '200':
+          description: Post updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedItem'
+    delete:
+      summary: Delete feed post
+      description: Remove a post from the course feed.
+      responses:
+        '204':
+          description: Post deleted
+
+  /courses/{courseId}/feed/stream:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+    get:
+      summary: SSE live feed stream
+      description: >
+        Streams new posts and automatic events in real-time using Server-Sent Events (SSE).
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event: new_post
+                  data: {"uuid":"123","message":"New material added"}
+
+components:
+  parameters:
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MaterialId:
+      name: materialId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    QuizId:
+      name: quizId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PostId:
+      name: postId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    OrganizationResponse:
+      type: object
+      properties:
+        organization:
+          type: string
+          example: Student Cyber Games
+      required: [organization]
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: The requested resource was not found.
+      required: [message]
+
+    CourseSummary:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [uuid, name]
+
+    CourseCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+      required: [name]
+
+    CourseUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    CourseDetail:
+      type: object
+      properties:
+        uuid:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        materials:
+          type: array
+          items:
+            $ref: '#/components/schemas/Material'
+        quizzes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quiz'
+        feed:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeedItem'
+      required: [uuid, name]
+
+    Material:
+      oneOf:
+        - $ref: '#/components/schemas/FileMaterial'
+        - $ref: '#/components/schemas/UrlMaterial'
+      discriminator:
+        propertyName: type
+
+    FileMaterial:
+      type: object
+      properties:
+        uuid:
+          type: string
+        type:
+          type: string
+          enum: [file]
+        name:
+          type: string
+        description:
+          type: string
+        fileUrl:
+          type: string
+          format: uri
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+      required: [uuid, type, name, fileUrl]
+
+    UrlMaterial:
+      type: object
+      properties:
+        uuid:
+          type: string
+        type:
+          type: string
+          enum: [url]
+        name:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+        faviconUrl:
+          type: string
+          format: uri
+      required: [uuid, type, name, url]
+
+    FileMaterialCreateRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [file]
+        name:
+          type: string
+        description:
+          type: string
+        file:
+          type: string
+          format: binary
+      required: [type, name, file]
+
+    UrlMaterialCreateRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [url]
+        name:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+      required: [type, name, url]
+
+    FileMaterialUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        file:
+          type: string
+          format: binary
+
+    UrlMaterialUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+
+    Quiz:
+      type: object
+      properties:
+        uuid:
+          type: string
+        title:
+          type: string
+        attemptsCount:
+          type: integer
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+      required: [title, questions]
+
+    Question:
+      oneOf:
+        - $ref: '#/components/schemas/SingleChoiceQuestion'
+        - $ref: '#/components/schemas/MultipleChoiceQuestion'
+      discriminator:
+        propertyName: type
+
+    SingleChoiceQuestion:
+      type: object
+      properties:
+        uuid:
+          type: string
+        type:
+          type: string
+          enum: [singleChoice]
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correctIndex:
+          type: integer
+      required: [type, question, options, correctIndex]
+
+    MultipleChoiceQuestion:
+      type: object
+      properties:
+        uuid:
+          type: string
+        type:
+          type: string
+          enum: [multipleChoice]
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correctIndices:
+          type: array
+          items:
+            type: integer
+      required: [type, question, options, correctIndices]
+
+    QuizSubmitRequest:
+      type: object
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuizAnswer'
+      required: [answers]
+
+    QuizAnswer:
+      type: object
+      properties:
+        uuid:
+          type: string
+        selectedIndex:
+          type: integer
+        selectedIndices:
+          type: array
+          items:
+            type: integer
+        comment:
+          type: string
+          description: Optional comment or explanation for the answer
+
+    QuizSubmitResponse:
+      type: object
+      properties:
+        quizUuid:
+          type: string
+        score:
+          type: number
+        maxScore:
+          type: number
+        correctPerQuestion:
+          type: array
+          items:
+            type: boolean
+        submittedAt:
+          type: string
+          format: date-time
+      required: [quizUuid, score, maxScore, submittedAt]
+
+    FeedItem:
+      type: object
+      properties:
+        uuid:
+          type: string
+        type:
+          type: string
+          enum: [manual, system]
+        message:
+          type: string
+        edited:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [uuid, type, message, createdAt]
+
+    FeedCreateRequest:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    FeedUpdateRequest:
+      type: object
+      properties:
+        message:
+          type: string
+        edited:
+          type: boolean
+
