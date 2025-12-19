@@ -306,7 +306,7 @@ coursesRoutes.get("/:courseId/feed/stream", (req, res) => {
   const sample = {
     uuid: id,
     name: "test-course",
-    description: "Sample course created by server",
+    description: "Sample course created by server using REST API",
     materials: [],
     quizzes: [],
     feed: [],

@@ -13,21 +13,13 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-@font-face {
-          font-family: 'Dosis';
-          src: url('font.ttf');
-      }
-      body {
-          font-family: 'Dosis', sans-serif;
-      }
-
 a {
   font-weight: 500;
-  color: #646cff;
+  color: #49B3B4;
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: #2592B8;
 }
 
 body {
