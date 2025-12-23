@@ -8,7 +8,7 @@
 
 ## Popis projektu
 
-Tento projekt byl vytvořen v rámci studia oboru Informační technologie na střední škole.  
+Tento projekt byl vytvořen v rámci účasti v soutěži Tour De App a studia oboru Informační technologie na střední škole.  
 Cílem je ukázat schopnost navrhnout, realizovat a zdokumentovat software formou týmové spolupráce.
 
 ## Účel aplikace
