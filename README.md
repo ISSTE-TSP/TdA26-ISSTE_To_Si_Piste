@@ -7,11 +7,11 @@
 - **Dan Hýský** – Zástupce CEO  
 ## Použité technologie
 
-- Docker  
-- GitHub  
-- Caddy  
-- Nginx  
-- MySQL
+- Docker - Spouštění aplikací v kontejnerech
+- GitHub - Verzování
+- Caddy - Webový server s automatickým HTTPS
+- Nginx - Webový server
+- MySQL - Databázový systém
   
 ## Popis projektu
 

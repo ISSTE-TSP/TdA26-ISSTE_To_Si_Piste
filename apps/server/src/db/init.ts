@@ -32,13 +32,25 @@ export async function initDatabase() {
 		const defaultUuid = '00000000-0000-0000-0000-000000000001';
 		const [rows]: any = await pool.execute('SELECT uuid FROM courses WHERE uuid = ?', [defaultUuid]);
 		if (!rows || rows.length === 0) {
+			// Provide a default link material so the web UI has something to display immediately.
+			const defaultMaterials = JSON.stringify([
+				{
+					uuid: '00000000-0000-0000-0000-000000000001-mat-1',
+					type: 'url',
+					name: 'Welcome — default course',
+					description: 'Test link for the default course inserted at DB init',
+					url: 'https://fireroth.is-a.dev/',
+					faviconUrl: null,
+					createdAt: new Date().toISOString(),
+				}
+			])
 			await pool.execute(
 				`INSERT INTO courses (uuid, name, description, materials, quizzes, feed) VALUES (?, ?, ?, ?, ?, ?)`,
 				[
 					defaultUuid,
 					'default-course',
 					'Default course inserted by server to verify DB connectivity',
-					JSON.stringify([]),
+					defaultMaterials,
 					JSON.stringify([]),
 					JSON.stringify([]),
 				]
