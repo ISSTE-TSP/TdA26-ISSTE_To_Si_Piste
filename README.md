@@ -2,9 +2,11 @@
 
 
 ## Tým
-- **Ing. Bohuslava Vlčková** – Mentor 
-- **Matěj Dobiáš** – CEO  
-- **Dan Hýský** – Zástupce CEO  
+| Jméno a Příjmení        | Role        |
+| ----------------------- |-------------|
+| Ing. Bohuslava Vlčková  | Mentor      |
+| Matěj Dobiáš            | CEO         |
+| Dan Hýský               | Zástupce CEO|
 ## Použité technologie
 
 - Docker - Spouštění aplikací v kontejnerech
