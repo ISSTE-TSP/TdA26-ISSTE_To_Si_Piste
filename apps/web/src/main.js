@@ -436,6 +436,13 @@ async function renderManageCourse(params) {
   function openEditMaterial(materialId) {
     const m = (course.materials || []).find(x => x.uuid === materialId)
     if (!m) return
+    // Ensure there's only one edit form visible at any time.
+    const container = document.getElementById('materials-list')
+    const existingForm = container.querySelector('#edit-material-form')
+    if (existingForm) {
+      existingForm.remove()
+    }
+
     const formHtml = `
       <h4>Edit material</h4>
       <form id="edit-material-form">
@@ -445,10 +452,11 @@ async function renderManageCourse(params) {
         <div><button type="submit">Save</button> <button id="cancel-edit">Cancel</button></div>
       </form>
     `
-    const container = document.getElementById('materials-list')
     container.insertAdjacentHTML('afterbegin', formHtml)
-    document.getElementById('cancel-edit').addEventListener('click', (e) => { e.preventDefault(); renderMaterials() })
-    document.getElementById('edit-material-form').addEventListener('submit', async (e) => {
+    const cancelBtn = document.getElementById('cancel-edit')
+    const editForm = document.getElementById('edit-material-form')
+    if (cancelBtn) cancelBtn.addEventListener('click', (e) => { e.preventDefault(); renderMaterials() })
+    if (editForm) editForm.addEventListener('submit', async (e) => {
       e.preventDefault()
       const fd = new FormData(e.currentTarget)
       const payload = { name: fd.get('name'), description: fd.get('description') }
@@ -486,8 +494,17 @@ async function renderManageCourse(params) {
     try {
       const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(id)}/materials`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!res.ok) { const err = await res.json().catch(()=>({})); alert(err.error||'Failed'); return }
-      const created = await res.json()
-      course.materials = (course.materials || []).concat([created])
+      let created = null
+      const ct = res.headers.get('content-type') || ''
+      if (res.status !== 204 && ct.includes('application/json')) {
+        created = await res.json().catch(() => null)
+      }
+      if (created) {
+        course.materials = (course.materials || []).concat([created])
+      } else {
+        const latest = await fetchCourse(id)
+        course.materials = latest.materials || []
+      }
       renderMaterials()
       e.currentTarget.reset()
     } catch (e) { alert('Failed to add link') }
