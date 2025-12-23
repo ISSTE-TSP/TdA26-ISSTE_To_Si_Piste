@@ -1,19 +1,27 @@
 # TdA26-ISŠTE_To_Si_Pište
 
-
 ## Tým
 | Jméno a Příjmení        | Role        |
 | ----------------------- |-------------|
 | Ing. Bohuslava Vlčková  | Mentor      |
 | Matěj Dobiáš            | CEO         |
 | Dan Hýský               | Zástupce CEO|
+
 ## Použité technologie
 
-- Docker - Spouštění aplikací v kontejnerech
-- GitHub - Verzování
-- Caddy - Webový server s automatickým HTTPS
-- Nginx - Webový server
-- MySQL - Databázový systém
+### Backend
+![JavaScript](https://img.shields.io/badge/JavaScript-000000?style=for-the-badge&logo=javascript)
+![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![NodeJS](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Caddy](https://img.shields.io/badge/Caddy-339933?style=for-the-badge&logo=caddy&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+
+### Frontend
+![JavaScript](https://img.shields.io/badge/JavaScript-000000?style=for-the-badge&logo=javascript)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
+
   
 ## Popis projektu
 
