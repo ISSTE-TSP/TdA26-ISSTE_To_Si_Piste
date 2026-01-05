@@ -31,7 +31,11 @@ function toCourseObject(row: any) {
     uuid: row.uuid,
     name: row.name,
     description: row.description || "",
-    materials: parseJsonField(row.materials),
+    materials: (parseJsonField(row.materials) || []).slice().sort((a: any, b: any) => {
+      const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return tb - ta;
+    }),
     quizzes: parseJsonField(row.quizzes),
     feed: parseJsonField(row.feed),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
@@ -196,7 +200,13 @@ coursesRoutes.get("/:courseId/materials", async (req, res) => {
   try {
     const row = await getCourseRow(courseId);
     if (!row) return res.status(404).json({ message: "Course not found" });
-    res.status(200).json(parseJsonField(row.materials));
+    const mats = parseJsonField(row.materials) || [];
+    mats.sort((a: any, b: any) => {
+      const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return tb - ta;
+    });
+    res.status(200).json(mats);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to get materials' });
@@ -204,96 +214,111 @@ coursesRoutes.get("/:courseId/materials", async (req, res) => {
 });
 
 // Accept multipart/form-data for file uploads (field name: file) or JSON for URLs
-coursesRoutes.post("/:courseId/materials", upload.single('file'), async (req, res) => {
+coursesRoutes.post("/:courseId/materials", async (req, res) => {
   const { courseId } = req.params;
-  const body = req.body || {};
-  // require type and name
-  if (!body.type || !body.name) return res.status(400).json({ error: "type and name required" });
-  try {
-    const row = await getCourseRow(courseId);
-    if (!row) return res.status(404).json({ message: "Course not found" });
-    const materials = parseJsonField(row.materials);
-    const id = randomUUID();
-    let material: any;
+  // run multer manually so we can capture errors and still handle JSON requests
+  upload.single('file')(req as any, res as any, async (err: any) => {
+    if (err) {
+      if (err.message === 'UNSUPPORTED_FILE_TYPE') return res.status(400).json({ error: 'Unsupported file type' });
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large (max 30MB)' });
+      console.error(err);
+      return res.status(500).json({ error: 'Failed to upload file' });
+    }
 
-    if (body.type === "url") {
-      // try to fetch favicon (best-effort)
-      let faviconUrl = null;
-      if (body.url) {
-        try {
-          faviconUrl = await tryFetchFavicon(body.url);
-        } catch (e) {
-          faviconUrl = null;
+    const body = req.body || {};
+    if (!body.type || !body.name) return res.status(400).json({ error: "type and name required" });
+    try {
+      const row = await getCourseRow(courseId);
+      if (!row) return res.status(404).json({ message: "Course not found" });
+      const materials = parseJsonField(row.materials) || [];
+      const id = randomUUID();
+      let material: any;
+
+      if (body.type === "url") {
+        let faviconUrl = null;
+        if (body.url) {
+          try { faviconUrl = await tryFetchFavicon(body.url); } catch { faviconUrl = null; }
         }
-      }
-      material = { uuid: id, type: "url", name: body.name, description: body.description || "", url: body.url || "", faviconUrl };
-    } else if (body.type === "file") {
-      // multer processed file (if sent as multipart). If JSON-only was sent with fileUrl, accept it but do not validate storage.
-      if (req.file) {
-        const file = req.file;
-        material = {
-          uuid: id,
-          type: "file",
-          name: body.name,
-          description: body.description || "",
-          fileUrl: `/uploads/materials/${file.filename}`,
-          mimeType: file.mimetype || null,
-          sizeBytes: file.size || 0,
-        };
-      } else if (body.fileUrl) {
-        material = {
-          uuid: id,
-          type: "file",
-          name: body.name,
-          description: body.description || "",
-          fileUrl: body.fileUrl,
-          mimeType: body.mimeType || null,
-          sizeBytes: body.sizeBytes || 0,
-        };
+        material = { uuid: id, type: "url", name: body.name, description: body.description || "", url: body.url || "", faviconUrl };
+      } else if (body.type === "file") {
+        if (req.file) {
+          const file = req.file;
+          material = {
+            uuid: id,
+            type: "file",
+            name: body.name,
+            description: body.description || "",
+            fileUrl: `/uploads/materials/${file.filename}`,
+            mimeType: file.mimetype || null,
+            sizeBytes: file.size || 0,
+          };
+        } else if (body.fileUrl) {
+          material = {
+            uuid: id,
+            type: "file",
+            name: body.name,
+            description: body.description || "",
+            fileUrl: body.fileUrl,
+            mimeType: body.mimeType || null,
+            sizeBytes: body.sizeBytes || 0,
+          };
+        } else {
+          return res.status(400).json({ error: 'file is required for type=file' });
+        }
       } else {
-        return res.status(400).json({ error: 'file is required for type=file' });
+        return res.status(400).json({ error: 'invalid type' });
       }
-    } else {
-      return res.status(400).json({ error: 'invalid type' });
-    }
 
-    // add createdAt so client can sort by newest
-    material.createdAt = new Date().toISOString();
-    materials.push(material);
-    await pool.execute('UPDATE courses SET materials = ? WHERE uuid = ?', [JSON.stringify(materials), courseId]);
-    res.status(201).json(material);
-  } catch (e: any) {
-    console.error(e);
-    // multer file filter emits specific error
-    if (e && e.message === 'UNSUPPORTED_FILE_TYPE') {
-      return res.status(400).json({ error: 'Unsupported file type' });
+      material.createdAt = new Date().toISOString();
+      materials.push(material);
+      await pool.execute('UPDATE courses SET materials = ? WHERE uuid = ?', [JSON.stringify(materials), courseId]);
+      res.status(201).json(material);
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to create material' });
     }
-    if (e && e.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'File too large (max 30MB)' });
-    }
-    res.status(500).json({ error: 'Failed to create material' });
-  }
+  });
 });
 
 coursesRoutes.put("/:courseId/materials/:materialId", async (req, res) => {
   const { courseId, materialId } = req.params;
-  const body = req.body || {};
-  try {
-    const row = await getCourseRow(courseId);
-    if (!row) return res.status(404).json({ message: "Course not found" });
-    const materials = parseJsonField(row.materials);
-    const m = materials.find((x: any) => x.uuid === materialId);
-    if (!m) return res.status(404).json({ message: "Material not found" });
-    if (body.name !== undefined) m.name = body.name;
-    if (body.description !== undefined) m.description = body.description;
-    if (body.url !== undefined) m.url = body.url;
-    if (body.fileUrl !== undefined) m.fileUrl = body.fileUrl;
-    await pool.execute('UPDATE courses SET materials = ? WHERE uuid = ?', [JSON.stringify(materials), courseId]);
-    res.status(200).json(m);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to update material' });
-  }
+  // run multer to accept optional file replacement
+  upload.single('file')(req as any, res as any, async (err: any) => {
+    if (err) {
+      if (err.message === 'UNSUPPORTED_FILE_TYPE') return res.status(400).json({ error: 'Unsupported file type' });
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large (max 30MB)' });
+      console.error(err);
+      return res.status(500).json({ error: 'Failed to upload file' });
+    }
+
+    const body = req.body || {};
+    try {
+      const row = await getCourseRow(courseId);
+      if (!row) return res.status(404).json({ message: "Course not found" });
+      const materials = parseJsonField(row.materials) || [];
+      const m = materials.find((x: any) => x.uuid === materialId);
+      if (!m) return res.status(404).json({ message: "Material not found" });
+      if (body.name !== undefined) m.name = body.name;
+      if (body.description !== undefined) m.description = body.description;
+      if (body.url !== undefined) m.url = body.url;
+
+      // handle file replacement
+      if (req.file) {
+        // remove old stored file if present
+        try { if (m && m.fileUrl) removeStoredFile(m.fileUrl); } catch {}
+        const file = req.file;
+        m.fileUrl = `/uploads/materials/${file.filename}`;
+        m.mimeType = file.mimetype || null;
+        m.sizeBytes = file.size || 0;
+      }
+
+      await pool.execute('UPDATE courses SET materials = ? WHERE uuid = ?', [JSON.stringify(materials), courseId]);
+      res.status(200).json(m);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to update material' });
+    }
+  });
 });
 
 coursesRoutes.delete("/:courseId/materials/:materialId", async (req, res) => {
