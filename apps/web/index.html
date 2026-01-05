@@ -4,26 +4,35 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <style>
-      @font-face {
-          font-family: 'Dosis';
-          src: url('font.ttf');
-      }
-      body {
-          font-family: 'Dosis', sans-serif;
-      }
-    </style>
     <title>Noodle</title>
   </head>
   <body>
-    <nav style="padding:0.5rem 1rem;background:#0257A5;border-bottom:1px solid #e6e9ee;">
-      <a href="/" style="margin-left:1rem;margin-right:1rem;text-decoration:none;color:#fff;" data-link>Home</a>
-      <a href="/courses" style="margin-right:1rem;text-decoration:none;color:#fff;" data-link id="nav-courses">Courses</a>
-      <a href="/login" style="margin-right:1rem;text-decoration:none;color:#fff;" data-link id="nav-login">Login</a>
-      <a href="/dashboard" style="text-decoration:none;color:#fff;display:none;" data-link id="nav-dashboard">Dashboard</a>
-    </nav>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="/" class="brand" data-link>🍜 Noodle</a>
+        <nav class="main-nav" aria-label="Main navigation">
+          <a href="/" data-link class="nav-link">Home</a>
+          <a href="/courses" data-link id="nav-courses" class="nav-link">Courses</a>
+          <a href="/login" data-link id="nav-login" class="nav-link">Login</a>
+          <a href="/dashboard" data-link id="nav-dashboard" class="nav-link" style="display:none">Dashboard</a>
+        </nav>
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">🌙</button>
+          <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">☰</button>
+        </div>
+      </div>
+    </header>
 
-    <div id="app"></div>
+    <main id="app" class="site-main"></main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div>Noodle LMS — minimal course manager</div>
+        <div>© <span id="year"></span></div>
+      </div>
+    </footer>
+
     <script type="module" src="/src/main.js"></script>
+    <script>document.getElementById('year').textContent = new Date().getFullYear()</script>
   </body>
 </html>

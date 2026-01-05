@@ -149,32 +149,76 @@ function updateNav() {
 }
 
 function renderNotFound() {
-  app.innerHTML = `<h2>Not found</h2><p>The page does not exist.</p>`
+  app.innerHTML = `
+    <section class="content">
+      <div class="container">
+        <div class="card">
+          <h2>Not found</h2>
+          <p class="muted">The page does not exist.</p>
+          <p><a href="/" data-link class="btn-ghost">Back home</a></p>
+        </div>
+      </div>
+    </section>
+  `
 }
 
 function renderHome() {
   app.innerHTML = `
-    <h1>Noodle</h1>
-    <p>Něco jako Moodle ale horší a nefunkční.</p>
+    <section class="hero">
+      <div class="container hero-inner">
+        <div>
+          <h1>Noodle</h1>
+          <p class="lead">A lightweight course & material manager — sleek, simple, private.</p>
+          <div class="hero-actions">
+            <a href="/courses" data-link class="btn">Explore courses</a>
+            <a href="/login" data-link class="btn">Lecturer login</a>
+          </div>
+        </div>
+        <div class="hero-illu"></div>
+      </div>
+    </section>
+    <section class="content">
+      <div class="container">
+        <div class="grid">
+          <div class="card">
+            <h3>Fast</h3>
+            <p class="muted">Built for quick demos and private classroom use.</p>
+          </div>
+          <div class="card">
+            <h3>Simple</h3>
+            <p class="muted">Manage courses and add resources in seconds.</p>
+          </div>
+          <div class="card">
+            <h3>Focused</h3>
+            <p class="muted">No unnecessary features — just materials and courses.</p>
+          </div>
+        </div>
+      </div>
+    </section>
   `
 }
 
 async function renderCourses() {
   const courses = await fetchCourses()
   app.innerHTML = `
-    <h1>Courses</h1>
-    <div style="margin-bottom:1rem;">
-      <input id="search" placeholder="Search by title" style="padding:0.5rem;width:60%" />
-    </div>
-    <div id="courses-list"></div>
+    <section class="content">
+      <div class="container">
+        <h1>Courses</h1>
+        <div style="margin-bottom:1rem;">
+          <input id="search" class="search" placeholder="Search by title" />
+        </div>
+        <div id="courses-list" class="grid"></div>
+      </div>
+    </section>
   `
   const list = document.getElementById('courses-list')
   function show(filtered) {
-    if (!filtered.length) { list.innerHTML = '<p>No courses found.</p>'; return }
+    if (!filtered.length) { list.innerHTML = '<div class="card">No courses found.</div>'; return }
     list.innerHTML = filtered.map(c => `
-      <article style="text-align:left;border:1px solid #e6e9ee;padding:1rem;margin:0.5rem 0;">
+      <article class="card course-card">
         <h3><a href="/courses/${c.uuid || c.id}" data-link>${escapeHtml(c.name || c.title)}</a></h3>
-        <p>${escapeHtml(c.description || '')}</p>
+        <div class="meta">${escapeHtml(c.description || '')}</div>
+        <div class="form-actions"><a href="/courses/${c.uuid || c.id}" data-link class="btn-ghost">View</a></div>
       </article>
     `).join('')
   }
@@ -196,43 +240,64 @@ async function renderCourseDetail(params) {
     return tb - ta
   })
   app.innerHTML = `
-    <h1>${escapeHtml(course.name || course.title)}</h1>
-    <p>${escapeHtml(course.description || '')}</p>
-    <section style="max-width:760px;margin:1rem auto;text-align:left;">
-      <h2>Materials</h2>
-      <div id="public-materials-list">
-        ${materials.length ? materials.map(m => {
-          if (m.type === 'file') {
-            return `<div style="border:1px solid #e6e9ee;padding:0.5rem;margin-bottom:0.5rem;">
-              <strong>${escapeHtml(m.name)}</strong>
-              <div style="color:#666">${escapeHtml(m.description || '')}</div>
-              <div><a href="${m.fileUrl}" target="_blank" rel="noopener">Download</a></div>
-            </div>`
-          }
-          return `<div style="border:1px solid #e6e9ee;padding:0.5rem;margin-bottom:0.5rem;display:flex;gap:0.5rem;align-items:center;">
-            ${m.faviconUrl ? `<img src="${m.faviconUrl}" style="width:24px;height:24px;object-fit:contain;border-radius:4px" />` : ''}
-            <div>
-              <strong><a href="${m.url}" target="_blank" rel="noopener">${escapeHtml(m.name)}</a></strong>
-              <div style="color:#666">${escapeHtml(m.description || '')}</div>
-            </div>
-          </div>`
-        }).join('') : '<p>No materials yet.</p>'}
+    <section class="content">
+      <div class="container">
+        <div class="card">
+          <h1>${escapeHtml(course.name || course.title)}</h1>
+          <p class="muted">${escapeHtml(course.description || '')}</p>
+        </div>
+        <section style="margin-top:1rem">
+          <h2>Materials</h2>
+          <div id="public-materials-list" class="materials-list">
+            ${materials.length ? materials.map(m => {
+              if (m.type === 'file') {
+                return `<div class="materials-item">
+                  <div style="flex:1">
+                    <strong>${escapeHtml(m.name)}</strong>
+                    <div class="muted">${escapeHtml(m.description || '')}</div>
+                    <div><a href="${m.fileUrl}" target="_blank" rel="noopener">Download</a></div>
+                  </div>
+                </div>`
+              }
+              return `<div class="materials-item">
+                <div style="display:flex;gap:0.5rem;align-items:center;flex:1">
+                  ${m.faviconUrl ? `<img src="${m.faviconUrl}" style="width:28px;height:28px;object-fit:contain;border-radius:6px" />` : ''}
+                  <div>
+                    <strong><a href="${m.url}" target="_blank" rel="noopener">${escapeHtml(m.name)}</a></strong>
+                    <div class="muted">${escapeHtml(m.description || '')}</div>
+                  </div>
+                </div>
+                <div><a href="${m.url || m.fileUrl}" target="_blank" rel="noopener" class="btn-ghost">Open</a></div>
+              </div>`
+            }).join('') : '<div class="card">No materials yet.</div>'}
+          </div>
+        </section>
+        <p style="margin-top:1rem"><a href="/courses" data-link class="btn-ghost">Back to list</a></p>
       </div>
     </section>
-    <p><a href="/courses" data-link>Back to list</a></p>
   `
 }
 
 function renderLogin() {
   if (isAuth()) { navigateTo('/dashboard'); return }
   app.innerHTML = `
-    <h1>Lecturer Login</h1>
-    <form id="login-form" style="max-width:28rem;margin:0 auto;text-align:left;">
-      <label>Username<br/><input name="username" required style="width:100%;padding:0.5rem"/></label>
-      <label>Password<br/><input name="password" type="password" required style="width:100%;padding:0.5rem"/></label>
-      <div style="margin-top:0.5rem;"><button type="submit">Login</button></div>
-      <p id="login-error" style="color:#c0392b"></p>
-    </form>
+    <section class="content">
+      <div class="container">
+        <div class="card" style="max-width:520px;margin:0 auto;text-align:left">
+          <h1>Lecturer Login</h1>
+          <form id="login-form">
+            <label class="field">Username
+              <input type="text" name="username" placeholder="lecturer" required />
+            </label>
+            <label class="field">Password
+              <input type="password" name="password" placeholder="••••••••" required />
+            </label>
+            <div class="form-actions" style="margin-top:0.5rem"><button type="submit">Login</button></div>
+            <p id="login-error" class="muted" style="color:#ff7b7b"></p>
+          </form>
+        </div>
+      </div>
+    </section>
   `
   const form = document.getElementById('login-form')
   form.addEventListener('submit', (e) => {
@@ -250,24 +315,26 @@ async function renderDashboard() {
   if (!isAuth()) { navigateTo('/login'); return }
   const courses = await fetchCourses()
   app.innerHTML = `
-    <h1>Dashboard</h1>
-    <div style="text-align:left;max-width:760px;margin:0 auto;">
-      <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;">
-        <button id="logout">Logout</button>
+    <section class="content">
+      <div class="container">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h1>Dashboard</h1>
+          <div><button id="logout" class="ghost">Logout</button></div>
+        </div>
+        <div class="card">
+          <h2>Add course</h2>
+          <form id="add-form">
+            <input name="title" placeholder="Title" required style="margin-bottom:0.5rem" />
+            <textarea name="description" placeholder="Description" required style="margin-bottom:0.5rem"></textarea>
+            <div><button type="submit">Add</button></div>
+          </form>
+        </div>
+        <section style="margin-top:1rem">
+          <h2>Your courses</h2>
+          <div id="manage-list"></div>
+        </section>
       </div>
-      <section style="margin-bottom:1rem;">
-        <h2>Add course</h2>
-        <form id="add-form">
-          <input name="title" placeholder="Title" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
-          <textarea name="description" placeholder="Description" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem"></textarea>
-          <div><button type="submit">Add</button></div>
-        </form>
-      </section>
-      <section>
-        <h2>Your courses</h2>
-        <div id="manage-list"></div>
-      </section>
-    </div>
+    </section>
   `
   document.getElementById('logout').addEventListener('click', () => { logout() })
   const addForm = document.getElementById('add-form')
@@ -286,17 +353,17 @@ async function renderDashboard() {
 async function renderManageList() {
   const list = document.getElementById('manage-list')
   const courses = await fetchCourses()
-  if (!courses.length) { list.innerHTML = '<p>No courses yet.</p>'; return }
+  if (!courses.length) { list.innerHTML = '<div class="card">No courses yet.</div>'; return }
   list.innerHTML = courses.map(c => `
-    <div style="border:1px solid #e6e9ee;padding:0.5rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
-      <div style="flex:1;text-align:left;padding-right:1rem;">
+    <div class="materials-item">
+      <div style="flex:1">
         <strong>${escapeHtml(c.name || c.title)}</strong>
-        <div style="color:#666">${escapeHtml(c.description || '')}</div>
+        <div class="muted">${escapeHtml(c.description || '')}</div>
       </div>
-      <div style="display:flex;gap:0.5rem;">
-        <button data-action="edit" data-id="${c.uuid || c.id}">Edit</button>
-        <button data-action="manage" data-id="${c.uuid || c.id}">Manage</button>
-        <button data-action="delete" data-id="${c.uuid || c.id}">Delete</button>
+      <div style="display:flex;gap:0.5rem">
+        <button data-action="edit" data-id="${c.uuid || c.id}" class="ghost">Edit</button>
+        <button data-action="manage" data-id="${c.uuid || c.id}" class="ghost">Manage</button>
+        <button data-action="delete" data-id="${c.uuid || c.id}" class="ghost">Delete</button>
       </div>
     </div>
   `).join('')
@@ -319,12 +386,18 @@ function openEditForm(id) {
   fetchCourse(id).then(course => {
     if (!course) return renderNotFound()
   app.innerHTML = `
-    <h1>Edit course</h1>
-    <form id="edit-form" style="max-width:760px;margin:0 auto;text-align:left;">
-      <input name="title" value="${escapeHtml(course.name || course.title)}" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
-      <textarea name="description" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem">${escapeHtml(course.description || '')}</textarea>
-      <div><button type="submit">Save</button> <button id="cancel">Cancel</button></div>
-    </form>
+    <section class="content">
+      <div class="container">
+        <div class="card" style="max-width:760px;margin:0 auto;text-align:left;">
+          <h1>Edit course</h1>
+          <form id="edit-form">
+            <input name="title" value="${escapeHtml(course.name || course.title)}" required style="margin-bottom:0.5rem" />
+            <textarea name="description" required style="margin-bottom:0.5rem">${escapeHtml(course.description || '')}</textarea>
+            <div class="form-actions"><button type="submit">Save</button> <button id="cancel" class="ghost">Cancel</button></div>
+          </form>
+        </div>
+      </div>
+    </section>
   `
   document.getElementById('cancel').addEventListener('click', (e) => { e.preventDefault(); renderDashboard() })
   document.getElementById('edit-form').addEventListener('submit', async (e) => {
@@ -350,28 +423,43 @@ async function renderManageCourse(params) {
     return tb - ta
   })
   app.innerHTML = `
-    <h1>Manage course: ${escapeHtml(course.name || course.title)}</h1>
-    <p><a href="/dashboard" data-link>Back to dashboard</a></p>
-    <section style="max-width:760px;margin:0 auto;text-align:left;">
-      <h2>Materials</h2>
-      <div id="materials-list">${materials.length ? '' : '<p>No materials yet.</p>'}</div>
-      <hr />
-      <h3>Add file</h3>
-      <form id="upload-form">
-        <input name="name" placeholder="Title" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
-        <input name="description" placeholder="Short description" style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
-        <input type="file" name="file" required style="margin-bottom:0.5rem" />
-        <input type="hidden" name="type" value="file" />
-        <div><button type="submit">Upload file</button></div>
-      </form>
-      <hr />
-      <h3>Add link</h3>
-      <form id="link-form">
-        <input name="name" placeholder="Title" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
-        <input name="url" placeholder="https://..." required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
-        <input name="description" placeholder="Short description" style="width:100%;padding:0.5rem;margin-bottom:0.5rem" />
-        <div><button type="submit">Add link</button></div>
-      </form>
+    <section class="content">
+      <div class="container">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h1>Manage course: ${escapeHtml(course.name || course.title)}</h1>
+          <div><a href="/dashboard" data-link class="btn-ghost">Back</a></div>
+        </div>
+
+        <div class="card">
+          <h2>Materials</h2>
+          <div id="materials-list" class="materials-list">
+            ${materials.length ? '' : '<div class="card">No materials yet.</div>'}
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">
+          <div class="card">
+            <h3>Add file</h3>
+            <form id="upload-form">
+              <label class="field">Title<input name="name" required /></label>
+              <label class="field">Short description<input name="description" /></label>
+              <label class="field">File<input type="file" name="file" required /></label>
+              <input type="hidden" name="type" value="file" />
+              <div class="form-actions"><button type="submit">Upload file</button></div>
+            </form>
+          </div>
+
+          <div class="card">
+            <h3>Add link</h3>
+            <form id="link-form">
+              <label class="field">Title<input name="name" required /></label>
+              <label class="field">URL<input type="url" name="url" placeholder="https://..." required /></label>
+              <label class="field">Short description<input name="description" /></label>
+              <div class="form-actions"><button type="submit">Add link</button></div>
+            </form>
+          </div>
+        </div>
+      </div>
     </section>
   `
 
@@ -382,34 +470,38 @@ async function renderManageCourse(params) {
       const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
       return tb - ta
     })
-    if (!arr.length) { container.innerHTML = '<p>No materials yet.</p>'; return }
+    if (!arr.length) { container.innerHTML = '<div class="card">No materials yet.</div>'; return }
     container.innerHTML = arr.map(m => {
       if (m.type === 'file') {
-        return `<div style="border:1px solid #e6e9ee;padding:0.5rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
-          <div style="text-align:left;flex:1">
-            <strong>${escapeHtml(m.name)}</strong>
-            <div style="color:#666">${escapeHtml(m.description || '')}</div>
-            <div><a href="${m.fileUrl}" target="_blank" rel="noopener">Download</a> — ${m.mimeType || ''} ${m.sizeBytes ? '('+m.sizeBytes+' bytes)' : ''}</div>
+        return `
+          <div class="materials-item">
+            <div style="flex:1">
+              <strong>${escapeHtml(m.name)}</strong>
+              <div class="muted">${escapeHtml(m.description || '')}</div>
+              <div><a href="${m.fileUrl}" target="_blank" rel="noopener">Download</a> — ${m.mimeType || ''} ${m.sizeBytes ? '('+m.sizeBytes+' bytes)' : ''}</div>
+            </div>
+            <div style="display:flex;gap:0.5rem">
+              <button data-action="edit-material" data-id="${m.uuid}" class="ghost">Edit</button>
+              <button data-action="delete-material" data-id="${m.uuid}" class="ghost">Delete</button>
+            </div>
+          </div>
+        `
+      }
+      return `
+        <div class="materials-item">
+          <div style="display:flex;gap:0.5rem;align-items:center;flex:1">
+            ${m.faviconUrl ? `<img src="${m.faviconUrl}" style="width:28px;height:28px;object-fit:contain;border-radius:6px" />` : ''}
+            <div>
+              <strong><a href="${m.url}" target="_blank" rel="noopener">${escapeHtml(m.name)}</a></strong>
+              <div class="muted">${escapeHtml(m.description || '')}</div>
+            </div>
           </div>
           <div style="display:flex;gap:0.5rem">
-            <button data-action="edit-material" data-id="${m.uuid}">Edit</button>
-            <button data-action="delete-material" data-id="${m.uuid}">Delete</button>
-          </div>
-        </div>`
-      }
-      return `<div style="border:1px solid #e6e9ee;padding:0.5rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
-        <div style="text-align:left;flex:1;display:flex;gap:0.5rem;align-items:center">
-          ${m.faviconUrl ? `<img src="${m.faviconUrl}" style="width:24px;height:24px;object-fit:contain;border-radius:4px" />` : ''}
-          <div>
-            <strong><a href="${m.url}" target="_blank" rel="noopener">${escapeHtml(m.name)}</a></strong>
-            <div style="color:#666">${escapeHtml(m.description || '')}</div>
+            <button data-action="edit-material" data-id="${m.uuid}" class="ghost">Edit</button>
+            <button data-action="delete-material" data-id="${m.uuid}" class="ghost">Delete</button>
           </div>
         </div>
-        <div style="display:flex;gap:0.5rem">
-          <button data-action="edit-material" data-id="${m.uuid}">Edit</button>
-          <button data-action="delete-material" data-id="${m.uuid}">Delete</button>
-        </div>
-      </div>`
+      `
     }).join('')
     // attach listeners
     container.querySelectorAll('button').forEach(b => b.addEventListener('click', async (e) => {
@@ -511,4 +603,53 @@ updateNav()
 router()
 
 window.navigateTo = navigateTo
+
+// mobile menu toggle
+const menuToggle = document.querySelector('.menu-toggle')
+if (menuToggle) {
+  menuToggle.addEventListener('click', () => {
+    const navEl = document.querySelector('.main-nav')
+    if (!navEl) return
+    const expanded = menuToggle.getAttribute('aria-expanded') === 'true'
+    menuToggle.setAttribute('aria-expanded', String(!expanded))
+    navEl.style.display = expanded ? 'none' : 'flex'
+  })
+  window.addEventListener('resize', () => {
+    const navEl = document.querySelector('.main-nav')
+    if (!navEl) return
+    if (window.innerWidth > 900) navEl.style.display = ''
+  })
+}
+
+
+// theme handling
+const THEME_KEY = 'tda_theme'
+function applyTheme(name) {
+  const body = document.body
+  if (name === 'light') body.classList.add('light-theme')
+  else body.classList.remove('light-theme')
+  const btn = document.getElementById('theme-toggle')
+  if (btn) btn.textContent = name === 'light' ? '☀️' : '🌙'
+}
+
+function loadTheme() {
+  try {
+    const t = localStorage.getItem(THEME_KEY) || 'dark'
+    applyTheme(t)
+  } catch (e) { applyTheme('dark') }
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.contains('light-theme')
+  const next = isLight ? 'dark' : 'light'
+  try { localStorage.setItem(THEME_KEY, next) } catch (e) {}
+  applyTheme(next)
+}
+
+const themeBtn = document.getElementById('theme-toggle')
+if (themeBtn) {
+  themeBtn.addEventListener('click', () => toggleTheme())
+}
+
+loadTheme()
 
