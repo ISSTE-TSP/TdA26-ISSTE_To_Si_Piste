@@ -72,6 +72,133 @@ async function deleteCourseOnServer(uuid) {
   }
 }
 
+// QUIZ API Functions
+async function fetchQuizzesForCourse(courseUuid) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/course/${encodeURIComponent(courseUuid)}`)
+    if (!res.ok) throw new Error('Failed to fetch')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    return []
+  }
+}
+
+async function fetchQuizForTaking(quizId) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}/take`)
+    if (!res.ok) throw new Error('Failed to fetch')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    return null
+  }
+}
+
+async function fetchQuizDetails(quizId) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}/detail`)
+    if (!res.ok) throw new Error('Failed to fetch')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    return null
+  }
+}
+
+async function createQuiz(courseUuid, title, description, questions) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/course/${encodeURIComponent(courseUuid)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, description, questions })
+    })
+    if (!res.ok) throw new Error('Create failed')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+}
+
+async function updateQuiz(quizId, title, description, questions) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, description, questions })
+    })
+    if (!res.ok) throw new Error('Update failed')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+}
+
+async function deleteQuiz(quizId) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}`, { method: 'DELETE' })
+    if (!res.ok && res.status !== 204) throw new Error('Delete failed')
+    return true
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+}
+
+async function deleteQuestionFromQuiz(quizId, questionId) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}/questions/${encodeURIComponent(questionId)}`, { method: 'DELETE' })
+    if (!res.ok && res.status !== 204) throw new Error('Delete failed')
+    return true
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+}
+
+async function updateQuestion(quizId, questionId, data) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}/questions/${encodeURIComponent(questionId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    if (!res.ok) throw new Error('Update failed')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+}
+
+async function submitQuiz(quizId, answers) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answers })
+    })
+    if (!res.ok) throw new Error('Submit failed')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+}
+
+async function fetchQuizResults(quizId) {
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}/results`)
+    if (!res.ok) throw new Error('Failed to fetch')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    return null
+  }
+}
+
 const isAuth = () => !!localStorage.getItem(AUTH_KEY)
 const login = (username, password) => {
   if (username === LECTURER.username && password === LECTURER.password) {
@@ -239,6 +366,8 @@ async function renderCourseDetail(params) {
     const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
     return tb - ta
   })
+  const quizzes = await fetchQuizzesForCourse(params.uuid)
+  
   app.innerHTML = `
     <section class="content">
       <div class="container">
@@ -246,6 +375,19 @@ async function renderCourseDetail(params) {
           <h1>${escapeHtml(course.name || course.title)}</h1>
           <p class="muted">${escapeHtml(course.description || '')}</p>
         </div>
+        <section style="margin-top:1rem">
+          <h2>Quizzes</h2>
+          <div id="public-quizzes-list" class="materials-list">
+            ${quizzes && quizzes.length ? quizzes.map(q => `<div class="materials-item">
+              <div style="flex:1">
+                <strong>${escapeHtml(q.title)}</strong>
+                <div class="muted">${escapeHtml(q.description || '')}</div>
+                <div class="muted">Completed: ${q.attemptsCount} times</div>
+              </div>
+              <div><button data-action="take-quiz" data-id="${q.id}" class="btn-ghost">Take Quiz</button></div>
+            </div>`).join('') : '<div class="card">No quizzes yet.</div>'}
+          </div>
+        </section>
         <section style="margin-top:1rem">
           <h2>Materials</h2>
           <div id="public-materials-list" class="materials-list">
@@ -276,6 +418,14 @@ async function renderCourseDetail(params) {
       </div>
     </section>
   `
+  
+  // Attach quiz event listeners
+  document.querySelectorAll('[data-action="take-quiz"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const quizId = e.currentTarget.dataset.id
+      navigateTo(`/quiz/${encodeURIComponent(quizId)}`)
+    })
+  })
 }
 
 function renderLogin() {
@@ -437,7 +587,7 @@ async function renderManageCourse(params) {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-top:1rem">
           <div class="card">
             <h3>Add file</h3>
             <form id="upload-form">
@@ -458,7 +608,21 @@ async function renderManageCourse(params) {
               <div class="form-actions"><button type="submit">Add link</button></div>
             </form>
           </div>
+
+          <div class="card">
+            <h3>Add quiz</h3>
+            <form id="new-quiz-form">
+              <label class="field">Title<input name="title" required /></label>
+              <label class="field">Description<textarea name="description" rows="2"></textarea></label>
+              <div class="form-actions"><button type="submit">Create Quiz</button></div>
+            </form>
+          </div>
         </div>
+
+        <section style="margin-top:1rem">
+          <h2>Existing Quizzes</h2>
+          <div id="quizzes-list"></div>
+        </section>
       </div>
     </section>
   `
@@ -585,7 +749,63 @@ async function renderManageCourse(params) {
     } catch (e) { alert('Failed to add link') }
   })
 
+  async function renderQuizzes() {
+    const container = document.getElementById('quizzes-list')
+    const quizzes = await fetchQuizzesForCourse(id)
+    if (!quizzes || !quizzes.length) {
+      container.innerHTML = '<div class="card">No quizzes yet.</div>'
+      return
+    }
+    container.innerHTML = quizzes.map(q => `
+      <div class="materials-item">
+        <div style="flex:1">
+          <strong>${escapeHtml(q.title)}</strong>
+          <div class="muted">${escapeHtml(q.description || '')}</div>
+          <div class="muted">${q.questions.length} questions | ${q.attemptsCount} attempts</div>
+        </div>
+        <div style="display:flex;gap:0.5rem">
+          <button data-action="edit-quiz" data-id="${q.id}" class="ghost">Edit</button>
+          <button data-action="view-results" data-id="${q.id}" class="ghost">Results</button>
+          <button data-action="delete-quiz" data-id="${q.id}" class="ghost">Delete</button>
+        </div>
+      </div>
+    `).join('')
+    
+    container.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const quizId = e.currentTarget.dataset.id
+        const action = e.currentTarget.dataset.action
+        
+        if (action === 'delete-quiz') {
+          if (!confirm('Delete this quiz?')) return
+          await deleteQuiz(quizId)
+          renderQuizzes()
+        } else if (action === 'edit-quiz') {
+          navigateTo(`/dashboard/quiz-edit/${encodeURIComponent(quizId)}`)
+        } else if (action === 'view-results') {
+          navigateTo(`/dashboard/quiz-results/${encodeURIComponent(quizId)}`)
+        }
+      })
+    })
+  }
+
+  document.getElementById('new-quiz-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const title = fd.get('title')
+    const description = fd.get('description')
+    
+    try {
+      await createQuiz(id, title, description, [])
+      renderQuizzes()
+      e.currentTarget.reset()
+    } catch (e) {
+      alert('Failed to create quiz')
+    }
+  })
+
   renderMaterials()
+  renderQuizzes()
 }
 
 function escapeHtml(s) {
@@ -597,7 +817,400 @@ route('/courses', renderCourses)
 route('/courses/:uuid', renderCourseDetail)
 route('/login', renderLogin)
 route('/dashboard', renderDashboard)
+// Take quiz - user taking a quiz
+async function renderTakeQuiz(params) {
+  const quizId = params.quizId
+  const quiz = await fetchQuizForTaking(quizId)
+  if (!quiz) { renderNotFound(); return }
+  
+  app.innerHTML = `
+    <section class="content">
+      <div class="container">
+        <div class="card">
+          <h1>${escapeHtml(quiz.title)}</h1>
+          <p class="muted">${escapeHtml(quiz.description || '')}</p>
+        </div>
+        <form id="quiz-form" style="margin-top:1rem">
+          <div id="questions-container"></div>
+          <div style="margin-top:1rem" class="form-actions">
+            <button type="submit">Submit Quiz</button>
+            <a href="/courses" data-link class="btn-ghost">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </section>
+  `
+  
+  const container = document.getElementById('questions-container')
+  const questionsHtml = quiz.questions.map((q, idx) => {
+    if (q.type === 'single') {
+      return `
+        <div class="card" style="margin-bottom:1rem">
+          <h3>${idx + 1}. ${escapeHtml(q.text)}</h3>
+          <div style="margin-top:0.5rem">
+            ${q.options.map((opt, i) => `
+              <label style="display:block;margin-bottom:0.5rem">
+                <input type="radio" name="question-${q.id}" value="${escapeHtml(opt)}" required />
+                ${escapeHtml(opt)}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `
+    } else { // multiple
+      return `
+        <div class="card" style="margin-bottom:1rem">
+          <h3>${idx + 1}. ${escapeHtml(q.text)}</h3>
+          <div style="margin-top:0.5rem">
+            ${q.options.map((opt, i) => `
+              <label style="display:block;margin-bottom:0.5rem">
+                <input type="checkbox" name="question-${q.id}" value="${escapeHtml(opt)}" />
+                ${escapeHtml(opt)}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `
+    }
+  }).join('')
+  
+  container.innerHTML = questionsHtml
+  
+  const form = document.getElementById('quiz-form')
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    
+    const answers = quiz.questions.map(q => {
+      const inputs = form.querySelectorAll(`[name="question-${q.id}"]`)
+      const selected = Array.from(inputs).filter(i => i.checked).map(i => i.value)
+      return { questionId: q.id, selectedOptions: selected }
+    })
+    
+    try {
+      const result = await submitQuiz(quizId, answers)
+      // Store result before navigation
+      sessionStorage.setItem(`quiz_result_${result.id}`, JSON.stringify(result))
+      navigateTo(`/quiz-result/${encodeURIComponent(quizId)}/${encodeURIComponent(result.id)}`)
+    } catch (e) {
+      alert('Failed to submit quiz: ' + (e.message || 'Unknown error'))
+    }
+  })
+}
+
+// Show quiz results
+async function renderQuizResult(params) {
+  const { quizId, resultId } = params
+  const quiz = await fetchQuizDetails(quizId)
+  
+  if (!quiz) { renderNotFound(); return }
+  
+  // Get result from local storage (we pass it after submission)
+  const resultStr = sessionStorage.getItem(`quiz_result_${resultId}`)
+  let result = resultStr ? JSON.parse(resultStr) : null
+  
+  // If not in session, we could fetch from API (but results are not exposed in our API)
+  if (!result) {
+    alert('Result not found. Please retake the quiz.')
+    navigateTo('/courses')
+    return
+  }
+  
+  sessionStorage.removeItem(`quiz_result_${resultId}`)
+  
+  app.innerHTML = `
+    <section class="content">
+      <div class="container">
+        <div class="card">
+          <h1>Quiz Results</h1>
+          <h2>${escapeHtml(quiz.title)}</h2>
+          <div style="margin-top:1rem;font-size:1.5rem;font-weight:bold">
+            Score: ${result.score.toFixed(1)}%
+            <span style="margin-left:1rem;color:${result.isPassed ? '#4CAF50' : '#ff6b6b'}">${result.isPassed ? '✓ Passed' : '✗ Failed'}</span>
+          </div>
+        </div>
+        <div id="results-detail" style="margin-top:1rem"></div>
+        <div style="margin-top:1rem">
+          <a href="/courses" data-link class="btn-ghost">Back to courses</a>
+        </div>
+      </div>
+    </section>
+  `
+  
+  const detailContainer = document.getElementById('results-detail')
+  const detailsHtml = result.questions.map((q, idx) => {
+    const isCorrect = JSON.stringify(q.userAnswer.sort()) === JSON.stringify(q.correctAnswers.sort())
+    return `
+      <div class="card" style="margin-bottom:1rem;border-left:4px solid ${isCorrect ? '#4CAF50' : '#ff6b6b'}">
+        <h3>${idx + 1}. ${escapeHtml(q.text)}</h3>
+        <div style="margin-top:0.5rem">
+          <div><strong>Your answer:</strong> ${escapeHtml(q.userAnswer.join(', ') || 'Not answered')}</div>
+          <div><strong>Correct answer:</strong> ${escapeHtml(q.correctAnswers.join(', '))}</div>
+          <div style="margin-top:0.5rem;color:${isCorrect ? '#4CAF50' : '#ff6b6b'};font-weight:bold">
+            ${isCorrect ? '✓ Correct' : '✗ Incorrect'}
+          </div>
+        </div>
+      </div>
+    `
+  }).join('')
+  detailContainer.innerHTML = detailsHtml
+  
+  sessionStorage.removeItem(`quiz_result_${resultId}`)
+}
+
+// Manage quizzes - lecturer view
+// Edit quiz questions
+async function renderEditQuiz(params) {
+  if (!isAuth()) { navigateTo('/login'); return }
+  const quizId = params.quizId
+  const quiz = await fetchQuizDetails(quizId)
+  
+  if (!quiz) { renderNotFound(); return }
+  
+  app.innerHTML = `
+    <section class="content">
+      <div class="container">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h1>Edit Quiz: ${escapeHtml(quiz.title)}</h1>
+          <div><a href="/dashboard" data-link class="btn-ghost">Back</a></div>
+        </div>
+        
+        <div class="card" style="margin-bottom:1rem">
+          <h2>Quiz Info</h2>
+          <form id="quiz-info-form">
+            <label class="field">Title<input name="title" value="${escapeHtml(quiz.title)}" required /></label>
+            <label class="field">Description<textarea name="description" rows="2">${escapeHtml(quiz.description || '')}</textarea></label>
+            <div class="form-actions"><button type="submit">Save</button></div>
+          </form>
+        </div>
+        
+        <div class="card" style="margin-bottom:1rem">
+          <h2>Add Question</h2>
+          <form id="new-question-form">
+            <label class="field">Question Text<input name="text" required /></label>
+            <label class="field">Type
+              <select name="type" required style="padding:0.5rem">
+                <option value="">Select type...</option>
+                <option value="single">Single Choice</option>
+                <option value="multiple">Multiple Choice</option>
+              </select>
+            </label>
+            <label class="field">Options (comma-separated)<input name="options" placeholder="Option 1, Option 2, Option 3" required /></label>
+            <label class="field">Correct Answers (comma-separated)<input name="correctAnswers" placeholder="Option 1, Option 3" required /></label>
+            <div class="form-actions"><button type="submit">Add Question</button></div>
+          </form>
+        </div>
+        
+        <section>
+          <h2>Questions</h2>
+          <div id="questions-list"></div>
+        </section>
+      </div>
+    </section>
+  `
+  
+  // Handle quiz info update
+  document.getElementById('quiz-info-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const title = fd.get('title')
+    const description = fd.get('description')
+    
+    try {
+      await updateQuiz(quizId, title, description, quiz.questions)
+      quiz.title = title
+      quiz.description = description
+      renderEditQuiz(params)
+    } catch (e) {
+      alert('Failed to update quiz')
+    }
+  })
+  
+  // Handle new question
+  document.getElementById('new-question-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const text = fd.get('text')
+    const type = fd.get('type')
+    const options = fd.get('options').split(',').map(o => o.trim())
+    const correctAnswers = fd.get('correctAnswers').split(',').map(o => o.trim())
+    
+    if (!text || !type || !options.length || !correctAnswers.length) {
+      alert('All fields are required')
+      return
+    }
+    
+    const newQuestion = {
+      id: uuid(),
+      type,
+      text,
+      options,
+      correctAnswers
+    }
+    
+    try {
+      const updated = await updateQuiz(quizId, quiz.title, quiz.description, [...quiz.questions, newQuestion])
+      quiz.questions = updated.questions
+      renderEditQuiz(params)
+    } catch (e) {
+      alert('Failed to add question')
+    }
+  })
+  
+  renderQuestionsList(quizId, quiz)
+}
+
+async function renderQuestionsList(quizId, quiz) {
+  const container = document.getElementById('questions-list')
+  
+  if (!quiz.questions || !quiz.questions.length) {
+    container.innerHTML = '<div class="card">No questions yet.</div>'
+    return
+  }
+  
+  container.innerHTML = quiz.questions.map((q, idx) => `
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div style="flex:1">
+          <h4>${idx + 1}. ${escapeHtml(q.text)}</h4>
+          <div class="muted" style="margin-top:0.5rem">Type: ${q.type === 'single' ? 'Single Choice' : 'Multiple Choice'}</div>
+          <div class="muted">Options: ${escapeHtml(q.options.join(', '))}</div>
+          <div class="muted">Correct: ${escapeHtml(q.correctAnswers.join(', '))}</div>
+        </div>
+        <div style="display:flex;gap:0.5rem">
+          <button data-action="edit-question" data-id="${q.id}" class="ghost">Edit</button>
+          <button data-action="delete-question" data-id="${q.id}" class="ghost">Delete</button>
+        </div>
+      </div>
+    </div>
+  `).join('')
+  
+  container.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const questionId = e.currentTarget.dataset.id
+      const action = e.currentTarget.dataset.action
+      
+      if (action === 'delete-question') {
+        if (!confirm('Delete this question?')) return
+        await deleteQuestionFromQuiz(quizId, questionId)
+        const updated = await fetchQuizDetails(quizId)
+        quiz.questions = updated.questions
+        renderQuestionsList(quizId, quiz)
+      } else if (action === 'edit-question') {
+        const question = quiz.questions.find(q => q.id === questionId)
+        if (!question) return
+        
+        const formHtml = `
+          <div class="card" style="margin-bottom:1rem">
+            <h4>Edit Question</h4>
+            <form id="edit-question-form">
+              <label class="field">Question Text<input name="text" value="${escapeHtml(question.text)}" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" /></label>
+              <label class="field">Type
+                <select name="type" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem">
+                  <option value="single" ${question.type === 'single' ? 'selected' : ''}>Single Choice</option>
+                  <option value="multiple" ${question.type === 'multiple' ? 'selected' : ''}>Multiple Choice</option>
+                </select>
+              </label>
+              <label class="field">Options (comma-separated)<input name="options" value="${escapeHtml(question.options.join(', '))}" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" /></label>
+              <label class="field">Correct Answers (comma-separated)<input name="correctAnswers" value="${escapeHtml(question.correctAnswers.join(', '))}" required style="width:100%;padding:0.5rem;margin-bottom:0.5rem" /></label>
+              <div><button type="submit">Save</button> <button id="cancel-edit" type="button">Cancel</button></div>
+            </form>
+          </div>
+        `
+        container.insertAdjacentHTML('afterbegin', formHtml)
+        
+        document.getElementById('cancel-edit').addEventListener('click', (e) => {
+          e.preventDefault()
+          renderQuestionsList(quizId, quiz)
+        })
+        
+        document.getElementById('edit-question-form').addEventListener('submit', async (e) => {
+          e.preventDefault()
+          const fd = new FormData(e.currentTarget)
+          const text = fd.get('text')
+          const type = fd.get('type')
+          const options = fd.get('options').split(',').map(o => o.trim())
+          const correctAnswers = fd.get('correctAnswers').split(',').map(o => o.trim())
+          
+          try {
+            const updatedQuestions = quiz.questions.map(q => 
+              q.id === questionId ? { ...q, text, type, options, correctAnswers } : q
+            )
+            const updated = await updateQuiz(quizId, quiz.title, quiz.description, updatedQuestions)
+            quiz.questions = updated.questions
+            renderQuestionsList(quizId, quiz)
+          } catch (e) {
+            alert('Failed to update question')
+          }
+        })
+      }
+    })
+  })
+}
+
+// View quiz results
+async function renderQuizResults(params) {
+  if (!isAuth()) { navigateTo('/login'); return }
+  const quizId = params.quizId
+  const quiz = await fetchQuizDetails(quizId)
+  const results = await fetchQuizResults(quizId)
+  
+  if (!quiz || !results) { renderNotFound(); return }
+  
+  app.innerHTML = `
+    <section class="content">
+      <div class="container">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h1>Quiz Results: ${escapeHtml(quiz.title)}</h1>
+          <div><a href="/dashboard" data-link class="btn-ghost">Back</a></div>
+        </div>
+        
+        <div class="card">
+          <h2>Statistics</h2>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem">
+            <div>
+              <div class="muted">Total Attempts</div>
+              <div style="font-size:2rem;font-weight:bold">${results.totalAttempts}</div>
+            </div>
+            <div>
+              <div class="muted">Average Score</div>
+              <div style="font-size:2rem;font-weight:bold">${results.averageScore}%</div>
+            </div>
+            <div>
+              <div class="muted">Pass Rate</div>
+              <div style="font-size:2rem;font-weight:bold">${results.totalAttempts > 0 ? ((results.results.filter(r => r.isPassed).length / results.totalAttempts) * 100).toFixed(1) : 0}%</div>
+            </div>
+          </div>
+        </div>
+        
+        <section style="margin-top:1rem">
+          <h2>Individual Results</h2>
+          <div id="results-list"></div>
+        </section>
+      </div>
+    </section>
+  `
+  
+  const resultsList = document.getElementById('results-list')
+  if (!results.results || !results.results.length) {
+    resultsList.innerHTML = '<div class="card">No submissions yet.</div>'
+  } else {
+    resultsList.innerHTML = results.results.map((r, idx) => `
+      <div class="materials-item">
+        <div style="flex:1">
+          <strong>Submission ${idx + 1}</strong>
+          <div class="muted">Score: ${r.score.toFixed(1)}% | Status: ${r.isPassed ? 'Passed' : 'Failed'}</div>
+          <div class="muted">Submitted: ${new Date(r.submittedAt).toLocaleString()}</div>
+        </div>
+      </div>
+    `).join('')
+  }
+}
+
 route('/dashboard/courses/:uuid', renderManageCourse)
+route('/quiz/:quizId', renderTakeQuiz)
+route('/quiz-result/:quizId/:resultId', renderQuizResult)
+route('/dashboard/quiz-edit/:quizId', renderEditQuiz)
+route('/dashboard/quiz-results/:quizId', renderQuizResults)
 
 updateNav()
 router()

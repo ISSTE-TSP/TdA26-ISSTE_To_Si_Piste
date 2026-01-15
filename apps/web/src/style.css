@@ -63,14 +63,28 @@ body{margin:0;min-height:100vh;display:flex;flex-direction:column}
 
 form{display:block}
 /* target all textual inputs including those without an explicit type */
-input:not([type=checkbox]):not([type=radio]),textarea,select{width:100%;padding:0.6rem;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+input:not([type=checkbox]):not([type=radio]),textarea,select{
+  width:100%;
+  padding:0.75rem;
+  border-radius:10px;
+  border:1.5px solid rgba(107,214,180,0.2);
+  background:rgba(255,255,255,0.06);
+  color:inherit;
+  font-size:1rem;
+  transition:all 0.2s ease;
+}
 input[type="file"]{padding:0.35rem}
 textarea{min-height:120px}
 
 label.field{display:block;margin-bottom:0.6rem;font-weight:600}
 label.field .muted{font-weight:400}
 
-input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent-2);box-shadow:0 6px 20px rgba(79,182,255,0.06),0 0 0 4px rgba(79,182,255,0.02)}
+input:focus,textarea:focus,select:focus{
+  outline:none;
+  border-color:var(--accent-2);
+  background:rgba(79,182,255,0.1);
+  box-shadow:0 0 0 3px rgba(79,182,255,0.15)
+}
 
 .form-actions{display:flex;gap:0.5rem;align-items:center}
 
@@ -97,6 +111,22 @@ button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);colo
   color: #0b1620;
   background-color: var(--bg);
   --h1-text: #0b84ff;
+}
+
+.light-theme input:not([type=checkbox]):not([type=radio]),
+.light-theme textarea,
+.light-theme select{
+  border-color:rgba(11,132,255,0.3);
+  background:rgba(11,132,255,0.08);
+  color:#0b1620;
+}
+
+.light-theme input:focus,
+.light-theme textarea:focus,
+.light-theme select:focus{
+  border-color:#0b84ff;
+  background:rgba(11,132,255,0.15);
+  box-shadow:0 0 0 3px rgba(11,132,255,0.2);
 }
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}

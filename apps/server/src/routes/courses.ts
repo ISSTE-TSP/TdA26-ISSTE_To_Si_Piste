@@ -36,7 +36,11 @@ function toCourseObject(row: any) {
       const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return tb - ta;
     }),
-    quizzes: parseJsonField(row.quizzes),
+    quizzes: (parseJsonField(row.quizzes) || []).slice().sort((a: any, b: any) => {
+      const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return tb - ta;
+    }),
     feed: parseJsonField(row.feed),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
@@ -364,7 +368,7 @@ coursesRoutes.post("/:courseId/quizzes", async (req, res) => {
     if (!row) return res.status(404).json({ message: "Course not found" });
     const quizzes = parseJsonField(row.quizzes);
     const id = randomUUID();
-    const quiz = { uuid: id, title: body.title, attemptsCount: 0, questions: body.questions.map((q: any) => ({ uuid: randomUUID(), ...q })) };
+    const quiz = { uuid: id, title: body.title, attemptsCount: 0, createdAt: now(), questions: body.questions.map((q: any) => ({ uuid: randomUUID(), ...q })) };
     quizzes.push(quiz);
     await pool.execute('UPDATE courses SET quizzes = ? WHERE uuid = ?', [JSON.stringify(quizzes), courseId]);
     res.status(201).json(quiz);
@@ -458,10 +462,61 @@ coursesRoutes.post("/:courseId/quizzes/:quizId/submit", async (req, res) => {
       correctPerQuestion,
       submittedAt: now()
     };
-    res.status(200).json(response);
+
+    // persist attempt as anonymous but return a token to the user so they can view their own submission later
+    const attemptUuid = randomUUID();
+    const attemptToken = randomUUID();
+    try {
+      await pool.execute(
+        `INSERT INTO quiz_attempts (uuid, course_uuid, quiz_uuid, attempt_token, score, max_score, correct_per_question, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [attemptUuid, courseId, q.uuid, attemptToken, score, q.questions.length, JSON.stringify(correctPerQuestion), new Date().toISOString()]
+      );
+    } catch (e) {
+      console.error('Failed to persist quiz attempt', e);
+    }
+
+    // increment attemptsCount on quiz and persist back to course
+    try {
+      const idx = quizzes.findIndex((x: any) => x.uuid === quizId);
+      if (idx !== -1) {
+        quizzes[idx].attemptsCount = (quizzes[idx].attemptsCount || 0) + 1;
+        await pool.execute('UPDATE courses SET quizzes = ? WHERE uuid = ?', [JSON.stringify(quizzes), courseId]);
+      }
+    } catch (e) {
+      console.error('Failed to update quiz attemptsCount', e);
+    }
+
+    res.status(200).json({ ...response, attemptToken });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to submit quiz' });
+  }
+});
+
+// List attempts for a quiz (teacher view) - anonymous results (no tokens)
+coursesRoutes.get("/:courseId/quizzes/:quizId/attempts", async (req, res) => {
+  const { courseId, quizId } = req.params;
+  try {
+    const [rows]: any = await pool.execute(`SELECT uuid, score, max_score, correct_per_question, submitted_at FROM quiz_attempts WHERE course_uuid = ? AND quiz_uuid = ? ORDER BY submitted_at DESC`, [courseId, quizId]);
+    const list = (rows || []).map((r: any) => ({ uuid: r.uuid, score: r.score, maxScore: r.max_score, correctPerQuestion: parseJsonField(r.correct_per_question), submittedAt: r.submitted_at }));
+    res.status(200).json(list);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to list quiz attempts' });
+  }
+});
+
+// Fetch a single attempt by token (user can retrieve their own result)
+coursesRoutes.get("/:courseId/quizzes/:quizId/attempts/token/:token", async (req, res) => {
+  const { courseId, quizId, token } = req.params;
+  try {
+    const [rows]: any = await pool.execute(`SELECT uuid, score, max_score, correct_per_question, submitted_at FROM quiz_attempts WHERE course_uuid = ? AND quiz_uuid = ? AND attempt_token = ?`, [courseId, quizId, token]);
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Attempt not found' });
+    const r = rows[0];
+    res.status(200).json({ uuid: r.uuid, score: r.score, maxScore: r.max_score, correctPerQuestion: parseJsonField(r.correct_per_question), submittedAt: r.submitted_at });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch attempt' });
   }
 });
 

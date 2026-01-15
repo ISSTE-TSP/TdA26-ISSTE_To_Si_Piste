@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { initDatabase } from "./db/init.js";
 import { userRoutes } from "./routes/users.js";
 import { coursesRoutes } from "./routes/courses.js";
+import { quizzesRoutes } from "./routes/quizzes.js";
 
 const app = express();
 
@@ -29,6 +30,7 @@ apiRoutes.get("/", (_req, res) => {
 
 apiRoutes.use("/users", userRoutes);
 apiRoutes.use("/courses", coursesRoutes);
+apiRoutes.use("/quizzes", quizzesRoutes);
 app.use("/api", apiRoutes);
 
 const port = process.env.PORT || 3000;

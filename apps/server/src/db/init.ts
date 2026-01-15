@@ -28,6 +28,35 @@ export async function initDatabase() {
 			)
 		`);
 
+		// Quizzes table - stores quizzes with their questions
+		await pool.execute(`
+			CREATE TABLE IF NOT EXISTS quizzes (
+				id VARCHAR(36) PRIMARY KEY,
+				course_uuid VARCHAR(36) NOT NULL,
+				title VARCHAR(255) NOT NULL,
+				description TEXT,
+				questions JSON NOT NULL,
+				attempts_count INT DEFAULT 0,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				FOREIGN KEY (course_uuid) REFERENCES courses(uuid) ON DELETE CASCADE
+			)
+		`);
+
+		// Quiz results table - stores results of quiz submissions
+		await pool.execute(`
+			CREATE TABLE IF NOT EXISTS quiz_results (
+				id VARCHAR(36) PRIMARY KEY,
+				quiz_id VARCHAR(36) NOT NULL,
+				answers JSON NOT NULL,
+				score FLOAT NOT NULL,
+				is_passed BOOLEAN DEFAULT FALSE,
+				submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+				INDEX idx_quiz_id (quiz_id)
+			)
+		`);
+
 		// Insert a default course used by the web to check DB connectivity if it doesn't exist
 		const defaultUuid = '00000000-0000-0000-0000-000000000001';
 		const [rows]: any = await pool.execute('SELECT uuid FROM courses WHERE uuid = ?', [defaultUuid]);
@@ -58,6 +87,49 @@ export async function initDatabase() {
 			console.log('Inserted default course with uuid', defaultUuid);
 		} else {
 			console.log('Default course already present');
+		}
+
+		// Insert a default test quiz if it doesn't exist
+		const defaultQuizId = '00000000-0000-0000-0000-000000000002';
+		const [quizRows]: any = await pool.execute('SELECT id FROM quizzes WHERE id = ?', [defaultQuizId]);
+		if (!quizRows || quizRows.length === 0) {
+			const defaultQuestions = JSON.stringify([
+				{
+					id: '00000000-0000-0000-0000-000000000101',
+					type: 'single',
+					text: 'What is the capital of France?',
+					options: ['Paris', 'London', 'Berlin', 'Madrid'],
+					correctAnswers: ['Paris']
+				},
+				{
+					id: '00000000-0000-0000-0000-000000000102',
+					type: 'multiple',
+					text: 'Which of these are programming languages? (Select all that apply)',
+					options: ['Python', 'HTML', 'JavaScript', 'CSS', 'Java'],
+					correctAnswers: ['Python', 'JavaScript', 'Java']
+				},
+				{
+					id: '00000000-0000-0000-0000-000000000103',
+					type: 'single',
+					text: 'What does API stand for?',
+					options: ['Application Programming Interface', 'Applied Program Integration', 'Application Process Interface', 'Automated Programming Interface'],
+					correctAnswers: ['Application Programming Interface']
+				}
+			]);
+			await pool.execute(
+				`INSERT INTO quizzes (id, course_uuid, title, description, questions, attempts_count) VALUES (?, ?, ?, ?, ?, ?)`,
+				[
+					defaultQuizId,
+					defaultUuid,
+					'Welcome Quiz',
+					'This is a test quiz to explore the platform features.',
+					defaultQuestions,
+					0
+				]
+			);
+			console.log('Inserted default test quiz with id', defaultQuizId);
+		} else {
+			console.log('Default test quiz already present');
 		}
 
 		console.log("Database schema initialized successfully!");
