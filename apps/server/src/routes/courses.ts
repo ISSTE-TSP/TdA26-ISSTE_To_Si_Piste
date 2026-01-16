@@ -23,6 +23,33 @@ async function getCourseRow(uuid: string) {
   return rows && rows.length ? rows[0] : null;
 }
 
+async function getFeedForCourse(courseId: string) {
+  try {
+    const [posts]: any = await pool.execute(
+      `SELECT id, course_uuid, type, message, author_type, edited, edited_at, created_at, updated_at 
+       FROM course_feed_posts 
+       WHERE course_uuid = ? 
+       ORDER BY created_at DESC`,
+      [courseId]
+    );
+    
+    return (posts || []).map((p: any) => ({
+      uuid: p.id,
+      courseUuid: p.course_uuid,
+      type: p.type,
+      message: p.message,
+      authorType: p.author_type,
+      edited: !!p.edited,
+      editedAt: p.edited_at ? new Date(p.edited_at).toISOString() : null,
+      createdAt: p.created_at ? new Date(p.created_at).toISOString() : null,
+      updatedAt: p.updated_at ? new Date(p.updated_at).toISOString() : null,
+    }));
+  } catch (e) {
+    console.error('Failed to get feed for course', e);
+    return [];
+  }
+}
+
 function parseJsonField(v: any) {
   if (v == null) return [];
   if (typeof v === 'string') {
@@ -31,7 +58,7 @@ function parseJsonField(v: any) {
   return v;
 }
 
-function toCourseObject(row: any) {
+function toCourseObject(row: any, feedItems?: any[]) {
   return {
     uuid: row.uuid,
     name: row.name,
@@ -46,7 +73,7 @@ function toCourseObject(row: any) {
       const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return tb - ta;
     }),
-    feed: parseJsonField(row.feed),
+    feed: feedItems || [],
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
@@ -125,7 +152,34 @@ function removeStoredFile(fileUrl: string | undefined) {
 coursesRoutes.get("/", async (_req, res) => {
   try {
     const [rows]: any = await pool.execute('SELECT uuid, name, description, materials, quizzes, feed, created_at, updated_at FROM courses ORDER BY created_at DESC');
-    const list = (rows || []).map((r: any) => toCourseObject(r));
+    
+    // Fetch all feed items for all courses
+    const [feedPosts]: any = await pool.execute(
+      `SELECT id, course_uuid, type, message, author_type, edited, edited_at, created_at, updated_at 
+       FROM course_feed_posts 
+       ORDER BY created_at DESC`
+    );
+    
+    // Group feed items by course
+    const feedByCoursId = new Map<string, any[]>();
+    (feedPosts || []).forEach((p: any) => {
+      if (!feedByCoursId.has(p.course_uuid)) {
+        feedByCoursId.set(p.course_uuid, []);
+      }
+      feedByCoursId.get(p.course_uuid)!.push({
+        uuid: p.id,
+        courseUuid: p.course_uuid,
+        type: p.type,
+        message: p.message,
+        authorType: p.author_type,
+        edited: !!p.edited,
+        editedAt: p.edited_at ? new Date(p.edited_at).toISOString() : null,
+        createdAt: p.created_at ? new Date(p.created_at).toISOString() : null,
+        updatedAt: p.updated_at ? new Date(p.updated_at).toISOString() : null,
+      });
+    });
+    
+    const list = (rows || []).map((r: any) => toCourseObject(r, feedByCoursId.get(r.uuid) || []));
     res.status(200).json(list);
   } catch (e) {
     console.error(e);
@@ -146,7 +200,8 @@ coursesRoutes.post("/", async (req, res) => {
     // initialize SSE subscribers set
     feedSubscribers.set(id, new Set());
     const row = await getCourseRow(id);
-    res.status(201).json(toCourseObject(row));
+    const feed = await getFeedForCourse(id);
+    res.status(201).json(toCourseObject(row, feed));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to create course' });
@@ -159,7 +214,8 @@ coursesRoutes.get("/:courseId", async (req, res) => {
   try {
     const row = await getCourseRow(courseId);
     if (!row) return res.status(404).json({ message: "Course not found" });
-    res.status(200).json(toCourseObject(row));
+    const feed = await getFeedForCourse(courseId);
+    res.status(200).json(toCourseObject(row, feed));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to get course' });
@@ -177,7 +233,8 @@ coursesRoutes.put("/:courseId", async (req, res) => {
     const newDesc = description !== undefined ? description : row.description;
     await pool.execute('UPDATE courses SET name = ?, description = ? WHERE uuid = ?', [newName, newDesc, courseId]);
     const updated = await getCourseRow(courseId);
-    res.status(200).json(toCourseObject(updated));
+    const feed = await getFeedForCourse(courseId);
+    res.status(200).json(toCourseObject(updated, feed));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to update course' });
@@ -380,6 +437,10 @@ coursesRoutes.post("/:courseId/quizzes", async (req, res) => {
     const quiz = { uuid: id, title: body.title, attemptsCount: 0, createdAt: now(), questions: body.questions.map((q: any) => ({ uuid: randomUUID(), ...q })) };
     quizzes.push(quiz);
     await pool.execute('UPDATE courses SET quizzes = ? WHERE uuid = ?', [JSON.stringify(quizzes), courseId]);
+    
+    // Create auto-generated feed event
+    await addAutoFeedEvent(courseId, `New quiz available: "${body.title}"`);
+    
     res.status(201).json(quiz);
   } catch (e) {
     console.error(e);
@@ -547,7 +608,7 @@ coursesRoutes.get("/:courseId/feed", async (req, res) => {
     );
 
     const feedPosts = (posts || []).map((p: any) => ({
-      id: p.id,
+      uuid: p.id,
       courseUuid: p.course_uuid,
       type: p.type,
       message: p.message,
@@ -595,7 +656,7 @@ coursesRoutes.post("/:courseId/feed", async (req, res) => {
 
     const p = rows[0];
     const post = {
-      id: p.id,
+      uuid: p.id,
       courseUuid: p.course_uuid,
       type: p.type,
       message: p.message,
@@ -617,7 +678,7 @@ coursesRoutes.post("/:courseId/feed", async (req, res) => {
 // PUT /courses/:courseId/feed/:postId - Edit a feed post
 coursesRoutes.put("/:courseId/feed/:postId", async (req, res) => {
   const { courseId, postId } = req.params;
-  const { message } = req.body || {};
+  const { message, edited } = req.body || {};
 
   if (!message || typeof message !== "string") {
     return res.status(400).json({ error: "message is required" });
@@ -634,11 +695,12 @@ coursesRoutes.put("/:courseId/feed/:postId", async (req, res) => {
     }
 
     const currentTime = now();
+    const editedValue = edited !== undefined ? edited : true;
     await pool.execute(
       `UPDATE course_feed_posts 
        SET message = ?, edited = ?, edited_at = ?, updated_at = ? 
        WHERE id = ? AND course_uuid = ?`,
-      [message, true, currentTime, currentTime, postId, courseId]
+      [message, editedValue, editedValue ? toMySQLDateTime(currentTime) : null, toMySQLDateTime(currentTime), postId, courseId]
     );
 
     const [updatedRows]: any = await pool.execute(
@@ -648,7 +710,7 @@ coursesRoutes.put("/:courseId/feed/:postId", async (req, res) => {
 
     const p = updatedRows[0];
     const post = {
-      id: p.id,
+      uuid: p.id,
       courseUuid: p.course_uuid,
       type: p.type,
       message: p.message,
@@ -688,7 +750,7 @@ coursesRoutes.delete("/:courseId/feed/:postId", async (req, res) => {
 
     const subs = feedSubscribers.get(courseId);
     if (subs) {
-      const payload = JSON.stringify({ id: postId });
+      const payload = JSON.stringify({ uuid: postId });
       subs.forEach((r) => {
         try {
           r.write("event: deleted_post\n");
@@ -784,7 +846,7 @@ export async function addAutoFeedEvent(
     if (rows && rows.length > 0) {
       const p = rows[0];
       const post = {
-        id: p.id,
+        uuid: p.id,
         courseUuid: p.course_uuid,
         type: p.type,
         message: p.message,

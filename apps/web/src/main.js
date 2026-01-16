@@ -1032,7 +1032,7 @@ function initializeFeedUIForLecturer(courseUuid) {
           <button id="add-feed-post-btn">Add post</button>
         </div>
       ` + posts.map(post => `
-        <div class="feed-post ${post.edited ? 'edited' : ''}" data-post-id="${post.id}">
+        <div class="feed-post ${post.edited ? 'edited' : ''}" data-post-id="${post.uuid}">
           <div class="feed-post-header">
             <div style="flex: 1;">
               <div class="feed-post-meta">
@@ -1045,8 +1045,8 @@ function initializeFeedUIForLecturer(courseUuid) {
           </div>
           ${post.type === 'manual' ? `
             <div class="feed-post-actions">
-              <!--<button data-action="edit-post" data-post-id="${post.id}">Edit</button>-->
-              <button data-action="delete-post" data-post-id="${post.id}">Delete</button>
+              <!--<button data-action="edit-post" data-post-id="${post.uuid}">Edit</button>-->
+              <button data-action="delete-post" data-post-id="${post.uuid}">Delete</button>
             </div>
           ` : ''}
         </div>
