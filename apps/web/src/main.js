@@ -113,7 +113,10 @@ async function createQuiz(courseUuid, title, description, questions) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, description, questions })
     })
-    if (!res.ok) throw new Error('Create failed')
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new Error(errBody.error || 'Create failed')
+    }
     return await res.json()
   } catch (e) {
     console.error(e)
@@ -196,6 +199,61 @@ async function fetchQuizResults(quizId) {
   } catch (e) {
     console.error(e)
     return null
+  }
+}
+
+// FEED API Functions
+async function fetchFeedPosts(courseUuid) {
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseUuid)}/feed`)
+    if (!res.ok) throw new Error('Failed to fetch')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    return []
+  }
+}
+
+async function createFeedPost(courseUuid, message) {
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseUuid)}/feed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    })
+    if (!res.ok) throw new Error('Create failed')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+}
+
+async function updateFeedPost(courseUuid, postId, message) {
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseUuid)}/feed/${encodeURIComponent(postId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    })
+    if (!res.ok) throw new Error('Update failed')
+    return await res.json()
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+}
+
+async function deleteFeedPost(courseUuid, postId) {
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseUuid)}/feed/${encodeURIComponent(postId)}`, {
+      method: 'DELETE'
+    })
+    if (!res.ok && res.status !== 204) throw new Error('Delete failed')
+    return true
+  } catch (e) {
+    console.error(e)
+    throw e
   }
 }
 
@@ -367,6 +425,7 @@ async function renderCourseDetail(params) {
     return tb - ta
   })
   const quizzes = await fetchQuizzesForCourse(params.uuid)
+  const feedPosts = await fetchFeedPosts(params.uuid)
   
   app.innerHTML = `
     <section class="content">
@@ -375,6 +434,12 @@ async function renderCourseDetail(params) {
           <h1>${escapeHtml(course.name || course.title)}</h1>
           <p class="muted">${escapeHtml(course.description || '')}</p>
         </div>
+        <section class="feedCont" style="margin-top:1rem">
+          <h2>Feed</h2>
+          <div id="feed-container" style="min-height:200px">
+            <div class="card">Loading...</div>
+          </div>
+        </section>
         <section style="margin-top:1rem">
           <h2>Quizzes</h2>
           <div id="public-quizzes-list" class="materials-list">
@@ -418,6 +483,9 @@ async function renderCourseDetail(params) {
       </div>
     </section>
   `
+  
+  // Initialize feed UI and SSE connection
+  initializeFeedUI(params.uuid, feedPosts)
   
   // Attach quiz event listeners
   document.querySelectorAll('[data-action="take-quiz"]').forEach(btn => {
@@ -617,12 +685,20 @@ async function renderManageCourse(params) {
               <div class="form-actions"><button type="submit">Create Quiz</button></div>
             </form>
           </div>
+
         </div>
 
         <section style="margin-top:1rem">
           <h2>Existing Quizzes</h2>
           <div id="quizzes-list"></div>
         </section>
+
+        <div class="card" style="margin-bottom:1rem">
+          <h2>Feed</h2>
+          <div id="feed-management-container" style="min-height:200px">
+            <div class="card">Loading...</div>
+          </div>
+        </div>
       </div>
     </section>
   `
@@ -730,82 +806,361 @@ async function renderManageCourse(params) {
       }
       const created = await res.json()
       course.materials = (course.materials || []).concat([created])
-      renderMaterials()
+      await renderMaterials()
       f.reset()
-    } catch (e) { alert('Upload failed') }
+    } catch (e) {
+      console.error('Failed to upload material:', e)
+      alert('Upload failed')
+    }
   })
 
   document.getElementById('link-form').addEventListener('submit', async (e) => {
     e.preventDefault()
-    const fd = new FormData(e.currentTarget)
+    const form = e.currentTarget
+    const fd = new FormData(form)
     const payload = { type: 'url', name: fd.get('name'), description: fd.get('description'), url: fd.get('url') }
     try {
       const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(id)}/materials`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!res.ok) { const err = await res.json().catch(()=>({})); alert(err.error||'Failed'); return }
       const created = await res.json()
       course.materials = (course.materials || []).concat([created])
-      renderMaterials()
-      e.currentTarget.reset()
-    } catch (e) { alert('Failed to add link') }
+      await renderMaterials()
+      form.reset()
+    } catch (e) {
+      console.error('Failed to add link:', e)
+      alert('Failed to add link')
+    }
   })
 
   async function renderQuizzes() {
-    const container = document.getElementById('quizzes-list')
-    const quizzes = await fetchQuizzesForCourse(id)
-    if (!quizzes || !quizzes.length) {
-      container.innerHTML = '<div class="card">No quizzes yet.</div>'
-      return
-    }
-    container.innerHTML = quizzes.map(q => `
-      <div class="materials-item">
-        <div style="flex:1">
-          <strong>${escapeHtml(q.title)}</strong>
-          <div class="muted">${escapeHtml(q.description || '')}</div>
-          <div class="muted">${q.questions.length} questions | ${q.attemptsCount} attempts</div>
+    try {
+      const container = document.getElementById('quizzes-list')
+      const quizzes = await fetchQuizzesForCourse(id)
+      if (!quizzes || !quizzes.length) {
+        container.innerHTML = '<div class="card">No quizzes yet.</div>'
+        return
+      }
+      container.innerHTML = quizzes.map(q => `
+        <div class="materials-item">
+          <div style="flex:1">
+            <strong>${escapeHtml(q.title)}</strong>
+            <div class="muted">${escapeHtml(q.description || '')}</div>
+            <div class="muted">${q.questions.length} questions | ${q.attemptsCount} attempts</div>
+          </div>
+          <div style="display:flex;gap:0.5rem">
+            <button data-action="edit-quiz" data-id="${q.id}" class="ghost">Edit</button>
+            <button data-action="view-results" data-id="${q.id}" class="ghost">Results</button>
+            <button data-action="delete-quiz" data-id="${q.id}" class="ghost">Delete</button>
+          </div>
         </div>
-        <div style="display:flex;gap:0.5rem">
-          <button data-action="edit-quiz" data-id="${q.id}" class="ghost">Edit</button>
-          <button data-action="view-results" data-id="${q.id}" class="ghost">Results</button>
-          <button data-action="delete-quiz" data-id="${q.id}" class="ghost">Delete</button>
-        </div>
-      </div>
-    `).join('')
-    
-    container.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const quizId = e.currentTarget.dataset.id
-        const action = e.currentTarget.dataset.action
-        
-        if (action === 'delete-quiz') {
-          if (!confirm('Delete this quiz?')) return
-          await deleteQuiz(quizId)
-          renderQuizzes()
-        } else if (action === 'edit-quiz') {
-          navigateTo(`/dashboard/quiz-edit/${encodeURIComponent(quizId)}`)
-        } else if (action === 'view-results') {
-          navigateTo(`/dashboard/quiz-results/${encodeURIComponent(quizId)}`)
-        }
+      `).join('')
+      
+      container.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const quizId = e.currentTarget.dataset.id
+          const action = e.currentTarget.dataset.action
+          
+          if (action === 'delete-quiz') {
+            if (!confirm('Delete this quiz?')) return
+            await deleteQuiz(quizId)
+            await renderQuizzes()
+          } else if (action === 'edit-quiz') {
+            navigateTo(`/dashboard/quiz-edit/${encodeURIComponent(quizId)}`)
+          } else if (action === 'view-results') {
+            navigateTo(`/dashboard/quiz-results/${encodeURIComponent(quizId)}`)
+          }
+        })
       })
-    })
+    } catch (e) {
+      console.error('renderQuizzes error:', e)
+      throw e
+    }
   }
 
   document.getElementById('new-quiz-form').addEventListener('submit', async (e) => {
     e.preventDefault()
-    const fd = new FormData(e.currentTarget)
+    const form = e.currentTarget
+    const fd = new FormData(form)
     const title = fd.get('title')
     const description = fd.get('description')
     
     try {
       await createQuiz(id, title, description, [])
-      renderQuizzes()
-      e.currentTarget.reset()
+      await renderQuizzes()
+      form.reset()
     } catch (e) {
+      console.error(e)
       alert('Failed to create quiz')
     }
   })
 
   renderMaterials()
   renderQuizzes()
+  
+  // Initialize feed UI for lecturers (with editing capabilities)
+  initializeFeedUIForLecturer(id)
+}
+
+// Feed UI initialization for regular users/students
+function initializeFeedUI(courseUuid, initialPosts) {
+  const container = document.getElementById('feed-container')
+  if (!container) return
+
+  // Render initial posts
+  function renderFeedPosts(posts) {
+    if (!posts || posts.length === 0) {
+      container.innerHTML = '<div class="feed-empty">Žádné příspěvky v kanálu.</div>'
+      return
+    }
+
+    container.innerHTML = posts.map(post => `
+      <div class="feed-post ${post.edited ? 'edited' : ''}">
+        <div class="feed-post-header">
+          <div style="flex: 1;">
+            <div class="feed-post-meta">
+              <span>${post.authorType === 'system' ? '🔔 System' : '👨‍🏫 Lecturer'}</span>
+              <span>${new Date(post.createdAt).toLocaleString('cs-CZ')}</span>
+              ${post.edited && post.editedAt ? `<span>edited ${new Date(post.editedAt).toLocaleString('cs-CZ')}</span>` : ''}
+            </div>
+            <div class="feed-post-content">${escapeHtml(post.message)}</div>
+          </div>
+        </div>
+      </div>
+    `).join('')
+  }
+
+  renderFeedPosts(initialPosts)
+
+  // Connect to SSE for real-time updates
+  const eventSource = new EventSource(`${API_BASE}/courses/${encodeURIComponent(courseUuid)}/feed/stream`)
+
+  eventSource.addEventListener('new_post', (e) => {
+    try {
+      const post = JSON.parse(e.data)
+      // Prepend new post to the top
+      const allPosts = [post]
+      const existingHtml = container.innerHTML
+      if (!existingHtml.includes('feed-empty')) {
+        const posts = document.querySelectorAll('.feed-post')
+        if (posts.length > 0) {
+          const allText = Array.from(posts).map(p => p.outerHTML).join('')
+          container.innerHTML = `
+            <div class="feed-post ${post.edited ? 'edited' : ''}">
+              <div class="feed-post-header">
+                <div style="flex: 1;">
+                  <div class="feed-post-meta">
+                    <span>${post.authorType === 'system' ? '🔔 System' : '👨‍🏫 Lecturer'}</span>
+                    <span>${new Date(post.createdAt).toLocaleString('cs-CZ')}</span>
+                  </div>
+                  <div class="feed-post-content">${escapeHtml(post.message)}</div>
+                </div>
+              </div>
+            </div>
+          ` + allText
+          return
+        }
+      }
+      renderFeedPosts([post])
+    } catch (err) {
+      console.error('Failed to parse SSE event:', err)
+    }
+  })
+
+  eventSource.addEventListener('updated_post', (e) => {
+    try {
+      const post = JSON.parse(e.data)
+      // Find and update the post
+      const posts = document.querySelectorAll('.feed-post')
+      let found = false
+      posts.forEach(el => {
+        const postText = el.innerText
+        if (postText.includes(post.message)) {
+          el.classList.add('edited')
+          found = true
+        }
+      })
+    } catch (err) {
+      console.error('Failed to parse SSE event:', err)
+    }
+  })
+
+  eventSource.addEventListener('deleted_post', (e) => {
+    try {
+      const data = JSON.parse(e.data)
+      // The post is removed from the feed on the server side
+      // In a real app, you'd refresh the feed or remove the post from DOM
+      location.reload()
+    } catch (err) {
+      console.error('Failed to parse SSE event:', err)
+    }
+  })
+
+  return eventSource
+}
+
+// Feed UI initialization for lecturers (with editing capabilities)
+function initializeFeedUIForLecturer(courseUuid) {
+  const container = document.getElementById('feed-management-container')
+  if (!container) return
+
+  let eventSource = null
+  let allPosts = []
+
+  async function loadAndRenderPosts() {
+    try {
+      allPosts = await fetchFeedPosts(courseUuid)
+      renderFeedPosts(allPosts)
+    } catch (err) {
+      console.error('Failed to load feed posts:', err)
+      container.innerHTML = '<div class="card">Chyba při načítání kanálu.</div>'
+    }
+  }
+
+  function renderFeedPosts(posts) {
+    if (!posts || posts.length === 0) {
+      container.innerHTML = `
+        <div class="feed-empty">Žádné příspěvky v kanálu.</div>
+        <div class="feed-new-post-form">
+          <textarea id="new-feed-message" placeholder="New post..."></textarea>
+          <button id="add-feed-post-btn">Add post</button>
+        </div>
+      `
+    } else {
+      container.innerHTML = `
+        <div class="feed-new-post-form">
+          <textarea id="new-feed-message" placeholder="New post..."></textarea>
+          <button id="add-feed-post-btn">Add post</button>
+        </div>
+      ` + posts.map(post => `
+        <div class="feed-post ${post.edited ? 'edited' : ''}" data-post-id="${post.id}">
+          <div class="feed-post-header">
+            <div style="flex: 1;">
+              <div class="feed-post-meta">
+                <span>${post.authorType === 'system' ? '🔔 System' : '👨‍🏫 Lecturer'}</span>
+                <span>${new Date(post.createdAt).toLocaleString('cs-CZ')}</span>
+                ${post.edited && post.editedAt ? `<span>edited ${new Date(post.editedAt).toLocaleString('cs-CZ')}</span>` : ''}
+              </div>
+              <div class="feed-post-content">${escapeHtml(post.message)}</div>
+            </div>
+          </div>
+          ${post.type === 'manual' ? `
+            <div class="feed-post-actions">
+              <!--<button data-action="edit-post" data-post-id="${post.id}">Edit</button>-->
+              <button data-action="delete-post" data-post-id="${post.id}">Delete</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('')
+    }
+
+    // Attach event listeners
+    attachFeedEventListeners()
+  }
+
+  function attachFeedEventListeners() {
+    // Add new post button
+    const addBtn = document.getElementById('add-feed-post-btn')
+    if (addBtn) {
+      addBtn.removeEventListener('click', handleAddPost)
+      addBtn.addEventListener('click', handleAddPost)
+    }
+
+    // Edit buttons
+    document.querySelectorAll('[data-action="edit-post"]').forEach(btn => {
+      btn.removeEventListener('click', handleEditPost)
+      btn.addEventListener('click', handleEditPost)
+    })
+
+    // Delete buttons
+    document.querySelectorAll('[data-action="delete-post"]').forEach(btn => {
+      btn.removeEventListener('click', handleDeletePost)
+      btn.addEventListener('click', handleDeletePost)
+    })
+  }
+
+  async function handleAddPost() {
+    const textarea = document.getElementById('new-feed-message')
+    const message = textarea.value.trim()
+    if (!message) return
+
+    try {
+      await createFeedPost(courseUuid, message)
+      textarea.value = ''
+      await loadAndRenderPosts()
+    } catch (err) {
+      alert('Chyba při vytváření příspěvku')
+      console.error(err)
+    }
+  }
+
+  async function handleEditPost(e) {
+    const postId = e.currentTarget.dataset.postId
+    const post = allPosts.find(p => p.id === postId)
+    if (!post) return
+
+    const newMessage = prompt('Upravit příspěvek:', post.message)
+    if (newMessage === null || newMessage.trim() === '') return
+
+    try {
+      await updateFeedPost(courseUuid, postId, newMessage)
+      await loadAndRenderPosts()
+    } catch (err) {
+      alert('Chyba při úpravě příspěvku')
+      console.error(err)
+    }
+  }
+
+  async function handleDeletePost(e) {
+    const postId = e.currentTarget.dataset.postId
+    if (!confirm('Opravdu chcete smazat tento příspěvek?')) return
+
+    try {
+      await deleteFeedPost(courseUuid, postId)
+      await loadAndRenderPosts()
+    } catch (err) {
+      alert('Chyba při mazání příspěvku')
+      console.error(err)
+    }
+  }
+
+  // Load initial posts and setup SSE
+  loadAndRenderPosts()
+
+  // Setup SSE connection for real-time updates
+  eventSource = new EventSource(`${API_BASE}/courses/${encodeURIComponent(courseUuid)}/feed/stream`)
+
+  eventSource.addEventListener('new_post', (e) => {
+    try {
+      const post = JSON.parse(e.data)
+      allPosts.unshift(post)
+      renderFeedPosts(allPosts)
+    } catch (err) {
+      console.error('Failed to parse SSE event:', err)
+    }
+  })
+
+  eventSource.addEventListener('updated_post', (e) => {
+    try {
+      const post = JSON.parse(e.data)
+      const idx = allPosts.findIndex(p => p.id === post.id)
+      if (idx !== -1) {
+        allPosts[idx] = post
+        renderFeedPosts(allPosts)
+      }
+    } catch (err) {
+      console.error('Failed to parse SSE event:', err)
+    }
+  })
+
+  eventSource.addEventListener('deleted_post', (e) => {
+    try {
+      const data = JSON.parse(e.data)
+      allPosts = allPosts.filter(p => p.id !== data.id)
+      renderFeedPosts(allPosts)
+    } catch (err) {
+      console.error('Failed to parse SSE event:', err)
+    }
+  })
 }
 
 function escapeHtml(s) {

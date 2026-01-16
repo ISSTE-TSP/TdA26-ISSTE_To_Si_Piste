@@ -1,6 +1,7 @@
 import express from "express";
 import { randomUUID } from "crypto";
 import { pool } from "../db/index.js";
+import { addAutoFeedEvent } from "./courses.js";
 
 export const quizzesRoutes = express.Router();
 
@@ -74,6 +75,13 @@ quizzesRoutes.post("/course/:courseUuid", async (req, res) => {
     );
 
     const row = await getQuizRow(quizId);
+    if (!row) {
+      throw new Error('Failed to retrieve created quiz');
+    }
+
+    // Create auto-generated feed event
+    await addAutoFeedEvent(courseUuid, `New quiz: "${title}"`);
+
     res.status(201).json(toQuizObject(row));
   } catch (e: any) {
     console.error(e);
@@ -144,6 +152,9 @@ quizzesRoutes.put("/:quizId", async (req, res) => {
     );
 
     const updated = await getQuizRow(quizId);
+    if (!updated) {
+      throw new Error('Failed to retrieve updated quiz');
+    }
     res.status(200).json(toQuizObject(updated));
   } catch (e: any) {
     console.error(e);

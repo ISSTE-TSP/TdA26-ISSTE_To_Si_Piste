@@ -3,3 +3,4 @@ uploads
 .turbo
 .alchemy
 .env
+package-lock.json

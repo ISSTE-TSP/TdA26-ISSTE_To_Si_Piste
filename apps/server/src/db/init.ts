@@ -57,6 +57,24 @@ export async function initDatabase() {
 			)
 		`);
 
+		// Feed posts table - stores course feed posts and auto-generated events
+		await pool.execute(`
+			CREATE TABLE IF NOT EXISTS course_feed_posts (
+				id VARCHAR(36) PRIMARY KEY,
+				course_uuid VARCHAR(36) NOT NULL,
+				type ENUM('manual', 'system') DEFAULT 'manual',
+				message TEXT NOT NULL,
+				author_type ENUM('lecturer', 'system') DEFAULT 'lecturer',
+				edited BOOLEAN DEFAULT FALSE,
+				edited_at TIMESTAMP NULL,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				FOREIGN KEY (course_uuid) REFERENCES courses(uuid) ON DELETE CASCADE,
+				INDEX idx_course_uuid (course_uuid),
+				INDEX idx_created_at (created_at)
+			)
+		`);
+
 		// Insert a default course used by the web to check DB connectivity if it doesn't exist
 		const defaultUuid = '00000000-0000-0000-0000-000000000001';
 		const [rows]: any = await pool.execute('SELECT uuid FROM courses WHERE uuid = ?', [defaultUuid]);
