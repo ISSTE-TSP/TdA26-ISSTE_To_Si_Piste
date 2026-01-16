@@ -772,7 +772,8 @@ export async function addAutoFeedEvent(
       `INSERT INTO course_feed_posts 
        (id, course_uuid, type, message, author_type, edited, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [postId, courseUuid, "auto", message, "system", false, toMySQLDateTime(currentTime), toMySQLDateTime(currentTime)]
+      // 'type' column enum in the DB is ('manual','system') - use 'system' for auto-generated events
+      [postId, courseUuid, "system", message, "system", false, toMySQLDateTime(currentTime), toMySQLDateTime(currentTime)]
     );
 
     const [rows]: any = await pool.execute(

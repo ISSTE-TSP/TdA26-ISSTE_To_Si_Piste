@@ -909,7 +909,7 @@ function initializeFeedUI(courseUuid, initialPosts) {
   // Render initial posts
   function renderFeedPosts(posts) {
     if (!posts || posts.length === 0) {
-      container.innerHTML = '<div class="feed-empty">Žádné příspěvky v kanálu.</div>'
+      container.innerHTML = '<div class="feed-empty">Feed channel is empty.</div>'
       return
     }
 
@@ -1019,7 +1019,7 @@ function initializeFeedUIForLecturer(courseUuid) {
   function renderFeedPosts(posts) {
     if (!posts || posts.length === 0) {
       container.innerHTML = `
-        <div class="feed-empty">Žádné příspěvky v kanálu.</div>
+        <div class="feed-empty">Feed channel is empty.</div>
         <div class="feed-new-post-form">
           <textarea id="new-feed-message" placeholder="New post..."></textarea>
           <button id="add-feed-post-btn">Add post</button>
