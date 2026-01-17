@@ -34,3 +34,78 @@ Cílem je ukázat schopnost navrhnout, realizovat a zdokumentovat software formo
 Aplikace slouží jako ukázka školního projektu, který může být dále rozšiřován o nové funkce podle zadání nebo potřeb zadavatele.  
 README soubor zajišťuje základní představu o týmu a projektu pro vyučující nebo hodnotitele.
 
+## Jak spustit aplikaci
+
+### Požadavky
+- Node.js (verze 16+)
+- npm
+- Docker
+- Git
+
+### Instalace a spuštění
+
+#### 1. Klonování repozitáře
+```bash
+git clone https://github.com/ISSTE-TSP/TdA26-ISSTE_To_Si_Piste.git
+cd TdA26-ISSTE_To_Si_Piste
+```
+
+#### 2. Instalace závislostí
+
+**Backend (Server):**
+```bash
+cd apps/server
+npm install
+```
+
+**Frontend (Web):**
+```bash
+cd apps/web
+npm install
+```
+
+#### 3. Nastavení databáze
+
+**Varianta A: Docker (doporučeno)**
+```bash
+cd apps/server
+npm run db
+```
+
+Tento příkaz spustí MySQL databázi v Dockeru s následujícím nastavením:
+- Database: `tda_app`
+- Root heslo: `password`
+- Port: `3306`
+
+**Varianta B: Lokální MySQL**
+- Vytvořte databázi `tda_app`
+- Nastavte připojení v `.env` souboru (viz dále)
+
+#### 4. Konfigurační soubor
+
+V adresáři `/apps/server` vytvořte soubor `.env`:
+```
+DATABASE_URL=mysql://root:password@localhost:3306/tda_app
+```
+
+#### 5. Spuštění aplikace
+
+**Backend (Server):**
+```bash
+cd apps/server
+npm run dev
+```
+Server poběží na `http://localhost:3001`
+
+**Frontend (Web) - v novém terminálu:**
+```bash
+cd apps/web
+npm run dev
+```
+
+### Povolené porty
+- Frontend (Web): `3001`
+- Backend (Server): `3001`
+- MySQL: `3306`
+- Caddy (Reverse Proxy): `80`
+
