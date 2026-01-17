@@ -76,7 +76,8 @@ input:not([type=checkbox]):not([type=radio]),textarea,select{
   transition:all 0.2s ease;
 }
 input[type="file"]{padding:0.35rem}
-textarea{min-height:120px}
+textarea{min-height:120px;resize:vertical;overflow:hidden}
+textarea.auto-expand{resize:none}
 
 label.field{display:block;margin-bottom:0.6rem;font-weight:600}
 label.field .muted{font-weight:400}
@@ -224,7 +225,8 @@ button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);colo
 .feed-empty {
   color: var(--muted);
   text-align: center;
-  padding: 2rem 1rem;
+  padding: 1rem 1rem;
+  margin-bottom: 1rem;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 10px;
 }

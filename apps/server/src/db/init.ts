@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { pool } from "./index.js";
+import { addAutoFeedEvent } from "../routes/courses.js";
 
 export async function initDatabase() {
 	try {
@@ -20,6 +21,7 @@ export async function initDatabase() {
 				uuid VARCHAR(36) PRIMARY KEY,
 				name VARCHAR(255) NOT NULL,
 				description TEXT,
+				content LONGTEXT,
 				materials JSON,
 				quizzes JSON,
 				feed JSON,
@@ -92,11 +94,12 @@ export async function initDatabase() {
 				}
 			])
 			await pool.execute(
-				`INSERT INTO courses (uuid, name, description, materials, quizzes, feed) VALUES (?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO courses (uuid, name, description, content, materials, quizzes, feed) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 				[
 					defaultUuid,
 					'default-course',
 					'Default course inserted by server to verify DB connectivity',
+					'<h2>Welcome to the Default Course</h2><p>This course demonstrates the formatting capabilities available in course content:</p><h3>Text Formatting</h3><p>You can use <strong>bold text</strong>, <em>italic text</em>, and <u>underlined text</u> to emphasize important information.</p><h3>Lists</h3><p><strong>Unordered list:</strong></p><ul><li>First item in the list</li><li>Second item with emphasis</li><li>Third item for completeness</li></ul><p><strong>Ordered list:</strong></p><ol><li>Introduction to the topic</li><li>Key concepts and definitions</li><li>Practical examples and applications</li></ol><h3>Code and Quotes</h3><p>You can include <code>inline code</code> in your text for technical terms.</p><blockquote><p><em>Block quotes are useful for highlighting important statements or citations from other sources.</em></blockquote><h3>Additional Elements</h3><p>You can also use <mark>highlighted text</mark> to draw attention to specific content, and create <a href="https://example.com">hyperlinks</a> to external resources.</p><hr><p>This default course was inserted by the server to verify database connectivity. Feel free to edit or delete it!</p>',
 					defaultMaterials,
 					JSON.stringify([]),
 					JSON.stringify([]),
@@ -146,6 +149,10 @@ export async function initDatabase() {
 				]
 			);
 			console.log('Inserted default test quiz with id', defaultQuizId);
+			
+			// Add feed notifications about materials and quiz
+			await addAutoFeedEvent(defaultUuid, 'New study material: "Welcome — default course"');
+			await addAutoFeedEvent(defaultUuid, 'New quiz available: "Welcome Quiz"');
 		} else {
 			console.log('Default test quiz already present');
 		}

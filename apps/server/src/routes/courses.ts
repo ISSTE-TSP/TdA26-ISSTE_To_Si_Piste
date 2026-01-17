@@ -63,6 +63,7 @@ function toCourseObject(row: any, feedItems?: any[]) {
     uuid: row.uuid,
     name: row.name,
     description: row.description || "",
+    content: row.content || "",
     materials: (parseJsonField(row.materials) || []).slice().sort((a: any, b: any) => {
       const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -82,7 +83,7 @@ function toCourseObject(row: any, feedItems?: any[]) {
 // Setup uploads directory for materials and favicons
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsRoot = path.join(__dirname, '..', '..', 'uploads');
+const uploadsRoot = path.join(__dirname, '..', '..', '..', 'uploads');
 const materialsDir = path.join(uploadsRoot, 'materials');
 const faviconsDir = path.join(uploadsRoot, 'favicons');
 fs.mkdirSync(materialsDir, { recursive: true });
@@ -151,7 +152,7 @@ function removeStoredFile(fileUrl: string | undefined) {
 // List courses
 coursesRoutes.get("/", async (_req, res) => {
   try {
-    const [rows]: any = await pool.execute('SELECT uuid, name, description, materials, quizzes, feed, created_at, updated_at FROM courses ORDER BY created_at DESC');
+    const [rows]: any = await pool.execute('SELECT uuid, name, description, content, materials, quizzes, feed, created_at, updated_at FROM courses ORDER BY created_at DESC');
     
     // Fetch all feed items for all courses
     const [feedPosts]: any = await pool.execute(
@@ -189,13 +190,13 @@ coursesRoutes.get("/", async (_req, res) => {
 
 // Create course
 coursesRoutes.post("/", async (req, res) => {
-  const { name, description } = req.body || {};
+  const { name, description, content } = req.body || {};
   if (!name) return res.status(400).json({ error: "name is required" });
   const id = randomUUID();
   try {
     await pool.execute(
-      `INSERT INTO courses (uuid, name, description, materials, quizzes, feed) VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, name, description || '', JSON.stringify([]), JSON.stringify([]), JSON.stringify([])]
+      `INSERT INTO courses (uuid, name, description, content, materials, quizzes, feed) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, name, description || '', content || '', JSON.stringify([]), JSON.stringify([]), JSON.stringify([])]
     );
     // initialize SSE subscribers set
     feedSubscribers.set(id, new Set());
@@ -222,16 +223,17 @@ coursesRoutes.get("/:courseId", async (req, res) => {
   }
 });
 
-// Update course (name/description)
+// Update course (name/description/content)
 coursesRoutes.put("/:courseId", async (req, res) => {
   const { courseId } = req.params;
-  const { name, description } = req.body || {};
+  const { name, description, content } = req.body || {};
   try {
     const row = await getCourseRow(courseId);
     if (!row) return res.status(404).json({ message: "Course not found" });
     const newName = name !== undefined ? name : row.name;
     const newDesc = description !== undefined ? description : row.description;
-    await pool.execute('UPDATE courses SET name = ?, description = ? WHERE uuid = ?', [newName, newDesc, courseId]);
+    const newContent = content !== undefined ? content : row.content;
+    await pool.execute('UPDATE courses SET name = ?, description = ?, content = ? WHERE uuid = ?', [newName, newDesc, newContent, courseId]);
     const updated = await getCourseRow(courseId);
     const feed = await getFeedForCourse(courseId);
     res.status(200).json(toCourseObject(updated, feed));

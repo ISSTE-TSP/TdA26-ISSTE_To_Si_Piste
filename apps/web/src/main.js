@@ -8,6 +8,18 @@ const LECTURER = { username: 'lecturer', password: 'TdA26!' }
 
 const uuid = () => (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2, 9)
 
+// Auto-expand textarea when content changes
+function setupAutoExpandTextarea(textarea) {
+  const expand = () => {
+    textarea.style.height = 'auto'
+    textarea.style.height = (textarea.scrollHeight) + 'px'
+  }
+  textarea.addEventListener('input', expand)
+  textarea.addEventListener('change', expand)
+  // Initial expand if there's content
+  setTimeout(expand, 0)
+}
+
 const API_BASE = '/api'
 
 const saveCourses = (arr) => localStorage.setItem(COURSES_KEY, JSON.stringify(arr))
@@ -35,27 +47,27 @@ async function fetchCourse(uuid) {
   }
 }
 
-async function createCourseOnServer(title, description) {
+async function createCourseOnServer(title, description, content = '') {
   try {
-    const res = await fetch(`${API_BASE}/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title, description }) })
+    const res = await fetch(`${API_BASE}/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title, description, content }) })
     if (!res.ok) throw new Error('Create failed')
     return await res.json()
   } catch (e) {
     const arr = loadCourses()
-    const obj = { id: uuid(), title, description }
+    const obj = { id: uuid(), title, description, content }
     arr.push(obj); saveCourses(arr); return obj
   }
 }
 
-async function updateCourseOnServer(uuid, title, description) {
+async function updateCourseOnServer(uuid, title, description, content = '') {
   try {
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(uuid)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title, description }) })
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(uuid)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title, description, content }) })
     if (!res.ok) throw new Error('Update failed')
     return await res.json()
   } catch (e) {
     const arr = loadCourses()
     const idx = arr.findIndex(c => c.id === uuid)
-    if (idx >= 0) { arr[idx].title = title; arr[idx].description = description; saveCourses(arr); return arr[idx] }
+    if (idx >= 0) { arr[idx].title = title; arr[idx].description = description; arr[idx].content = content; saveCourses(arr); return arr[idx] }
     throw e
   }
 }
@@ -434,6 +446,11 @@ async function renderCourseDetail(params) {
           <h1>${escapeHtml(course.name || course.title)}</h1>
           <p class="muted">${escapeHtml(course.description || '')}</p>
         </div>
+        ${course.content ? `<div class="card" style="border-top: 3px solid #4fb6ff; padding-top: 1.5rem; margin-top: 1rem;">
+          <div class="content-block" style="line-height: 1.6;">
+            ${course.content}
+          </div>
+        </div>` : ''}
         <section class="feedCont" style="margin-top:1rem">
           <h2>Feed</h2>
           <div id="feed-container" style="min-height:200px">
@@ -543,7 +560,8 @@ async function renderDashboard() {
           <h2>Add course</h2>
           <form id="add-form">
             <input name="title" placeholder="Title" required style="margin-bottom:0.5rem" />
-            <textarea name="description" placeholder="Description" required style="margin-bottom:0.5rem"></textarea>
+            <textarea name="description" class="auto-expand" placeholder="Description" required style="margin-bottom:0.5rem"></textarea>
+            <textarea name="content" class="auto-expand" placeholder="Content (HTML allowed - e.g., &lt;h2&gt;Title&lt;/h2&gt;, &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;)" style="margin-bottom:0.5rem; font-family: monospace; font-size: 13px;"></textarea>
             <div><button type="submit">Add</button></div>
           </form>
         </div>
@@ -556,13 +574,16 @@ async function renderDashboard() {
   `
   document.getElementById('logout').addEventListener('click', () => { logout() })
   const addForm = document.getElementById('add-form')
+  // Setup auto-expand for textareas
+  document.querySelectorAll('#add-form textarea.auto-expand').forEach(setupAutoExpandTextarea)
   addForm.addEventListener('submit', async (e) => {
     e.preventDefault()
     const fd = new FormData(addForm)
     const title = fd.get('title').trim()
     const description = fd.get('description').trim()
+    const content = fd.get('content').trim()
     if (!title) return
-    await createCourseOnServer(title, description)
+    await createCourseOnServer(title, description, content)
     renderDashboard()
   })
   renderManageList()
@@ -610,20 +631,24 @@ function openEditForm(id) {
           <h1>Edit course</h1>
           <form id="edit-form">
             <input name="title" value="${escapeHtml(course.name || course.title)}" required style="margin-bottom:0.5rem" />
-            <textarea name="description" required style="margin-bottom:0.5rem">${escapeHtml(course.description || '')}</textarea>
+            <textarea name="description" class="auto-expand" required style="margin-bottom:0.5rem">${escapeHtml(course.description || '')}</textarea>
+            <textarea name="content" class="auto-expand" placeholder="Content (HTML allowed - e.g., &lt;h2&gt;Title&lt;/h2&gt;, &lt;b&gt;bold&lt;/b&gt;, &lt;i&gt;italic&lt;/i&gt;)" style="margin-bottom:0.5rem; font-family: monospace; font-size: 13px;">${escapeHtml(course.content || '')}</textarea>
             <div class="form-actions"><button type="submit">Save</button> <button id="cancel" class="ghost">Cancel</button></div>
           </form>
         </div>
       </div>
     </section>
   `
+  // Setup auto-expand for textareas
+  document.querySelectorAll('#edit-form textarea.auto-expand').forEach(setupAutoExpandTextarea)
   document.getElementById('cancel').addEventListener('click', (e) => { e.preventDefault(); renderDashboard() })
   document.getElementById('edit-form').addEventListener('submit', async (e) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     const title = fd.get('title').trim()
     const description = fd.get('description').trim()
-    await updateCourseOnServer(id, title, description)
+    const content = fd.get('content').trim()
+    await updateCourseOnServer(id, title, description, content)
     renderDashboard()
   })
   }).catch(() => renderNotFound())
@@ -688,7 +713,7 @@ async function renderManageCourse(params) {
 
         </div>
 
-        <section style="margin-top:1rem">
+        <section style="margin-top:1rem; margin-bottom:1rem">
           <h2>Existing Quizzes</h2>
           <div id="quizzes-list"></div>
         </section>
